@@ -142,3 +142,12 @@ Phase 5: added examples and smoke-tested profile loading plus /healthz and /v1/m
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/examples/profiles.yaml — Example Geppetto profile YAML for model listing and provider-backed completions
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/01-investigation-diary.md — Recorded Phase 5 validation and YAML correction
 
+
+## 2026-06-04
+
+Recorded final validation and commit ledger for /v1/completions prototype
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/01-investigation-diary.md — Final validation and commit ledger
+

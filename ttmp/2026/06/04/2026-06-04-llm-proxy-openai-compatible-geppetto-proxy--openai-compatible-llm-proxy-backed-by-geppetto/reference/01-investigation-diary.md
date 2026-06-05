@@ -1084,3 +1084,83 @@ After removing `default_profile_slug` from the example, the server started succe
 - Successful smoke outputs:
   - `{"status":"ok"}`
   - `{"data":[{"id":"gpt-responses","object":"model","owned_by":"geppetto-profile"},{"id":"sonnet","object":"model","owned_by":"geppetto-profile"}],"object":"list"}`
+
+## Step 13: Final validation and commit ledger
+
+This step recorded the final validation run and commit boundaries for the implemented `/v1/completions` prototype. The code now has phase-sized commits covering the task plan, HTTP skeleton, profile/model listing, non-streaming Geppetto inference, streaming via Geppetto events, and examples.
+
+The final validation passed in both workspace mode and `GOWORK=off`, and `docmgr doctor` passed for the ticket.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 7)
+
+**Assistant interpretation:** Ensure implementation phases are committed, validated, and documented before handoff.
+
+**Inferred user intent:** Provide a reliable checkpoint for review or continuation.
+
+### What I did
+
+- Ran final validation:
+  - `cd llm-proxy && go test ./... -count=1`
+  - `cd llm-proxy && GOWORK=off go test ./... -count=1`
+  - `docmgr doctor --ticket 2026-06-04-llm-proxy-openai-compatible-geppetto-proxy --stale-after 30`
+  - `git status --short`
+- Recorded commit boundaries:
+  - `01e0f9a1c9f3f453d28101b594856810fb9f03e5` — `Docs: plan completions proxy prototype phases`
+  - `9b6295a6780db0275d2ca177a217248be0e622bb` — `Prototype: add completions server skeleton`
+  - `160440d621a31311652c67280d94935866da3f6a` — `Prototype: add profile resolver and model listing`
+  - `b83912b2c6efaa7f8df9a256a07da335fe337556` — `Prototype: run completions through Geppetto`
+  - `efd1b73fdd11e0e159f77c6b5c5c95215267c55b` — `Prototype: stream completions from Geppetto events`
+  - `18e26c0d92f9d38571549b632ced2e5e3f481de8` — `Prototype: add completions examples and validation notes`
+
+### Why
+
+- The user asked for phase-by-phase implementation with commits at appropriate intervals.
+- A commit ledger makes the review sequence clear.
+
+### What worked
+
+- All Go tests passed in workspace mode.
+- All Go tests passed with `GOWORK=off`.
+- `docmgr doctor` passed.
+- The implementation is split into focused commits.
+
+### What didn't work
+
+- `git status --short` still shows untracked docmgr scaffolding directories:
+  - `ttmp/.docmgrignore`
+  - `ttmp/_guidelines/`
+  - `ttmp/_templates/`
+- These were not staged because they are generated docmgr scaffolding and unrelated to the prototype code/ticket content.
+
+### What I learned
+
+- The prototype can be built and tested outside the workspace after `go mod tidy` added Geppetto dependencies.
+- The remaining untracked files are docmgr scaffolding, not implementation artifacts.
+
+### What was tricky to build
+
+- Keeping commits phase-sized required committing docs and code together at phase boundaries so the diary and tasks matched the implementation state.
+
+### What warrants a second pair of eyes
+
+- Decide whether docmgr scaffolding under `ttmp/_guidelines`, `ttmp/_templates`, and `ttmp/.docmgrignore` should be tracked in this repo or ignored.
+- Review `DisallowUnknownFields` in the Completions request decoder; it may be too strict for real OpenAI-compatible clients.
+
+### What should be done in the future
+
+- Add request-level inference override mapping (`max_tokens`, `temperature`, `top_p`, `stop`).
+- Add better error classification so unknown profile returns 404 instead of a generic 500.
+- Run a live provider smoke test once profile credential loading is confirmed.
+
+### Code review instructions
+
+- Review commits in the order listed above.
+- Run `cd llm-proxy && go test ./... -count=1` and `cd llm-proxy && GOWORK=off go test ./... -count=1`.
+- Use `examples/README.md` for local smoke commands.
+
+### Technical details
+
+- Final test result: all package tests passed.
+- Final docmgr result: `✅ All checks passed`.
