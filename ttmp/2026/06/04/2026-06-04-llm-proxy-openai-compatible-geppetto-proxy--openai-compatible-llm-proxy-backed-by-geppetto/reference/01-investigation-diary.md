@@ -739,3 +739,87 @@ The Completions handler still uses a placeholder completion service. That is int
 - Test command output:
   - `ok   github.com/go-go-golems/llm-proxy/pkg/openaicompletions`
   - `ok   github.com/go-go-golems/llm-proxy/pkg/server`
+
+## Step 9: Implement Phase 2 profile listing and engine-provider seams
+
+This step added the Geppetto-facing seams for profile resolution and engine construction. The server can now load a Geppetto profile YAML file through `--profiles`, expose profile slugs through `GET /v1/models`, and has an `EngineProvider` wrapper around Geppetto's standard engine factory for the next inference phase.
+
+The `/v1/completions` handler still uses the placeholder completion service. Profile resolution and actual engine execution will be connected in Phase 3 so the bridge remains reviewable.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 7)
+
+**Assistant interpretation:** Continue implementing the `/v1/completions` prototype by adding profile loading/listing and the engine construction seam.
+
+**Inferred user intent:** Move from a plain HTTP skeleton toward Geppetto-backed inference while keeping the implementation incremental and testable.
+
+### What I did
+
+- Added `pkg/profiles/resolver.go`:
+  - `ProfileResolver` interface.
+  - `ResolvedProfileRuntime`.
+  - `NewYAMLResolver` over Geppetto's YAML profile store.
+  - `ResolveProfile` using `EngineProfileSlug`.
+  - `ListProfiles` for model listing.
+- Added `pkg/profiles/resolver_test.go` using a temporary Geppetto YAML profile store.
+- Added `pkg/runtime/engine_provider.go`:
+  - `EngineProvider` interface.
+  - `FactoryEngineProvider` using Geppetto's standard engine factory.
+- Extended `pkg/server/server.go` with `GET /v1/models` and a `ModelLister` seam.
+- Updated `cmd/llm-proxy-server/main.go` to load `--profiles` and wire model listing when provided.
+- Ran:
+  - `cd llm-proxy && go test ./... -count=1`
+  - `cd llm-proxy && GOWORK=off go test ./... -count=1`
+
+### Why
+
+- The prototype needs to use `model` as a Geppetto profile slug, so profile loading/listing has to exist before real inference.
+- The engine factory wrapper gives Phase 3 a small dependency to call instead of embedding Geppetto factory code directly in the HTTP handler.
+
+### What worked
+
+- Both workspace-mode and `GOWORK=off` tests passed.
+- `go mod tidy` added the Geppetto dependency and transitive dependencies needed to build outside the workspace.
+- The resolver test confirms a temporary Geppetto YAML profile can be listed and resolved by slug.
+
+### What didn't work
+
+- N/A. Tests passed after adding the resolver and model-list tests.
+
+### What I learned
+
+- `go test` in workspace mode can resolve local Geppetto without an explicit require, but `go mod tidy` is needed so `GOWORK=off` builds include `github.com/go-go-golems/geppetto`.
+- The profile resolver can be tested without real provider credentials by creating a profile with no inference settings.
+
+### What was tricky to build
+
+- The YAML resolver needs to preserve the registry slug loaded from the file. I implemented `NewYAMLResolver` by listing registries after loading the YAML store and using the first registry slug as the `StoreRegistry` default.
+
+### What warrants a second pair of eyes
+
+- Confirm whether choosing the first loaded registry is acceptable for the prototype, or whether the command should accept `--profile-registry`.
+- Confirm that `GET /v1/models` should list all registries loaded by the resolver, not only the default registry.
+
+### What should be done in the future
+
+- Phase 3 should replace the placeholder completion service with a Geppetto-backed completion service that resolves profiles, creates engines, runs inference, and maps generated turn blocks to OpenAI Completions responses.
+
+### Code review instructions
+
+- Start in `pkg/profiles/resolver.go` and `pkg/profiles/resolver_test.go`.
+- Then review `cmd/llm-proxy-server/main.go` for `--profiles` wiring.
+- Validate with `cd llm-proxy && go test ./... -count=1` and `cd llm-proxy && GOWORK=off go test ./... -count=1`.
+
+### Technical details
+
+- New files:
+  - `pkg/profiles/resolver.go`
+  - `pkg/profiles/resolver_test.go`
+  - `pkg/runtime/engine_provider.go`
+- Modified files:
+  - `cmd/llm-proxy-server/main.go`
+  - `pkg/server/server.go`
+  - `pkg/server/server_test.go`
+  - `go.mod`
+  - `go.sum`

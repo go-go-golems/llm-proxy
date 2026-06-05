@@ -95,3 +95,15 @@ Phase 1: added /v1/completions server skeleton, wire types, validation, and test
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/server/server.go — Health and /v1/completions handlers
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/01-investigation-diary.md — Recorded Phase 1 implementation
 
+
+## 2026-06-04
+
+Phase 2: added Geppetto profile resolver, model listing, engine-provider seam, and tests
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/profiles/resolver.go — Geppetto profile YAML resolver and profile slug lookup
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/runtime/engine_provider.go — Geppetto engine factory wrapper
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/server/server.go — Added /v1/models handler seam
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/reference/01-investigation-diary.md — Phase 2 diary note
+

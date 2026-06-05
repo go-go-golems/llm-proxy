@@ -13,13 +13,25 @@ type CompletionService interface {
 	Complete(ctx context.Context, req *openaicompletions.CompletionRequest) (*openaicompletions.CompletionResponse, error)
 }
 
+type ModelLister interface {
+	ListModels(ctx context.Context) ([]ModelDescriptor, error)
+}
+
+type ModelDescriptor struct {
+	ID      string `json:"id"`
+	Object  string `json:"object"`
+	OwnedBy string `json:"owned_by"`
+}
+
 type Options struct {
 	CompletionService CompletionService
+	ModelLister       ModelLister
 	MaxBodyBytes      int64
 }
 
 type Server struct {
 	completionService CompletionService
+	modelLister       ModelLister
 	maxBodyBytes      int64
 }
 
@@ -32,18 +44,32 @@ func New(opts Options) *Server {
 	if service == nil {
 		service = StaticCompletionService{}
 	}
-	return &Server{completionService: service, maxBodyBytes: maxBodyBytes}
+	return &Server{completionService: service, modelLister: opts.ModelLister, maxBodyBytes: maxBodyBytes}
 }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
+	mux.HandleFunc("GET /v1/models", s.handleModels)
 	mux.HandleFunc("POST /v1/completions", s.handleCompletions)
 	return mux
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
+	models := []ModelDescriptor{}
+	if s.modelLister != nil {
+		ret, err := s.modelLister.ListModels(r.Context())
+		if err != nil {
+			writeOpenAIError(w, http.StatusInternalServerError, err)
+			return
+		}
+		models = ret
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"object": "list", "data": models})
 }
 
 func (s *Server) handleCompletions(w http.ResponseWriter, r *http.Request) {

@@ -26,11 +26,11 @@
 
 ### Phase 2: Geppetto profile resolution and engine construction
 
-- [ ] Add `pkg/profiles.ProfileResolver` that loads Geppetto profile YAML and resolves request `model` as `EngineProfileSlug`.
-- [ ] Add optional `GET /v1/models` that lists profile slugs from the loaded registry.
-- [ ] Add `pkg/runtime.EngineProvider` over Geppetto's standard engine factory.
+- [x] Add `pkg/profiles.ProfileResolver` that loads Geppetto profile YAML and resolves request `model` as `EngineProfileSlug`.
+- [x] Add optional `GET /v1/models` that lists profile slugs from the loaded registry.
+- [x] Add `pkg/runtime.EngineProvider` over Geppetto's standard engine factory.
 - [ ] Wire the server handler to resolve the profile and create an engine before inference.
-- [ ] Add tests for known/missing profile behavior using an in-memory or fake resolver.
+- [x] Add tests for known/missing profile behavior using an in-memory or fake resolver.
 
 ### Phase 3: Non-streaming Geppetto inference bridge
 
