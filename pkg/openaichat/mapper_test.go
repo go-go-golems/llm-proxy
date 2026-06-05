@@ -32,6 +32,31 @@ func TestMapperRequestToTurn(t *testing.T) {
 	}
 }
 
+func TestMapperRequestToTurnWithUserImageContent(t *testing.T) {
+	content := json.RawMessage(`[
+		{"type":"text","text":"describe this"},
+		{"type":"image_url","image_url":{"url":"data:image/png;base64,UE5H","detail":"high"}}
+	]`)
+	req := &ChatCompletionRequest{Model: "sonnet", Messages: []ChatMessage{{Role: "user", Content: content}}}
+	turn, err := Mapper{}.RequestToTurn(req)
+	if err != nil {
+		t.Fatalf("RequestToTurn error: %v", err)
+	}
+	if len(turn.Blocks) != 1 || turn.Blocks[0].Kind != turns.BlockKindUser {
+		t.Fatalf("blocks = %#v", turn.Blocks)
+	}
+	if got, _ := turn.Blocks[0].Payload[turns.PayloadKeyText].(string); got != "describe this" {
+		t.Fatalf("text = %q", got)
+	}
+	images, ok := turn.Blocks[0].Payload[turns.PayloadKeyImages].([]map[string]any)
+	if !ok || len(images) != 1 {
+		t.Fatalf("images = %#v", turn.Blocks[0].Payload[turns.PayloadKeyImages])
+	}
+	if images[0]["url"] != "data:image/png;base64,UE5H" || images[0]["media_type"] != "image/png" || images[0]["detail"] != "high" {
+		t.Fatalf("image payload = %#v", images[0])
+	}
+}
+
 func TestMapperTurnToChatCompletion(t *testing.T) {
 	req := &ChatCompletionRequest{Model: "sonnet", Messages: []ChatMessage{{Role: "user", Content: rawString("hello")}}}
 	turn := &turns.Turn{}
