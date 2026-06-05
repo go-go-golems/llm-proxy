@@ -1468,7 +1468,7 @@ Tool support is intentionally client-driven. The proxy advertises tool schemas t
 
 **Inferred user intent:** The Chat Completions endpoint should be useful for real agent/tool clients, not only plain text chat.
 
-**Commit (code):** pending — "Prototype: add chat completions endpoint"
+**Commit (code):** 8583723a91c66b9fb17de455aab8d9e069071d66 — "Prototype: add chat completions endpoint"
 
 ### What I did
 

@@ -233,3 +233,12 @@ Recorded Chat Completions implementation and tool support in diary
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/openaichat/mapper.go — Tool mapping implementation
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/01-investigation-diary.md — Diary step for Chat Completions implementation and tool support
 
+
+## 2026-06-04
+
+Annotated Chat Completions diary with implementation commit 8583723
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/01-investigation-diary.md — Commit hash for Chat Completions implementation diary
+
