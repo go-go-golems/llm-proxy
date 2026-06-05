@@ -28,6 +28,16 @@ RelatedFiles:
       Note: Evidence for OpenAI Chat request shape.
     - Path: geppetto/pkg/steps/ai/openai_responses/helpers.go
       Note: Evidence for OpenAI Responses mapping rules.
+    - Path: llm-proxy/examples/README.md
+      Note: Phase 10 examples
+    - Path: llm-proxy/pkg/openaichat/stream.go
+      Note: Phase 9 streaming implementation
+    - Path: llm-proxy/pkg/openaichat/types.go
+      Note: Phase 6/expanded tool wire implementation
+    - Path: llm-proxy/pkg/runtime/chat_service.go
+      Note: Phase 7 runtime implementation
+    - Path: llm-proxy/pkg/server/server.go
+      Note: Phase 8 endpoint implementation
     - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/design-doc/01-openai-compatible-llm-proxy-design-and-implementation-guide.md
       Note: |-
         Primary design and implementation guide authored during this investigation.
@@ -46,6 +56,7 @@ LastUpdated: 2026-06-04T19:45:00-04:00
 WhatFor: Use this to understand how the design doc was produced, what evidence was gathered, and what remains to validate during implementation.
 WhenToUse: Read before continuing the llm-proxy implementation or reviewing the design decisions.
 ---
+
 
 
 
@@ -1442,3 +1453,97 @@ The endpoint is not wired into HTTP yet. This phase deliberately isolates wire a
   - `pkg/openaichat/types_test.go`
   - `pkg/openaichat/mapper.go`
   - `pkg/openaichat/mapper_test.go`
+
+## Step 18: Build Chat Completions with function tools and streaming
+
+This step completed the `/v1/chat/completions` prototype and expanded it from text-only chat to the core OpenAI function-tool loop. The endpoint now accepts chat messages, function tool definitions, assistant tool calls, tool-result messages, non-streaming responses, and SSE streaming chunks. The implementation still uses the same Geppetto profile and engine path as `/v1/completions`.
+
+Tool support is intentionally client-driven. The proxy advertises tool schemas to Geppetto through per-turn tool definitions and maps generated tool-call blocks back to OpenAI `tool_calls`, but it does not execute arbitrary client tools. Clients execute tools and send results back as `role: "tool"` messages.
+
+### Prompt Context
+
+**User prompt (verbatim):** "what's next? I want tools and all that"
+
+**Assistant interpretation:** Do not stop at text-only Chat Completions; add the practical OpenAI tool-call shapes as part of this endpoint.
+
+**Inferred user intent:** The Chat Completions endpoint should be useful for real agent/tool clients, not only plain text chat.
+
+**Commit (code):** pending — "Prototype: add chat completions endpoint"
+
+### What I did
+
+- Expanded `pkg/openaichat` request/response types with `tools`, `tool_choice`, assistant `tool_calls`, `tool_call_id`, and streaming `delta.tool_calls` chunks.
+- Mapped OpenAI function tools to Geppetto `engine.KeyToolDefinitions` and `engine.KeyToolConfig` on the turn.
+- Mapped assistant `tool_calls` to Geppetto `ToolCall` blocks and `role: "tool"` messages to Geppetto `ToolUse` blocks.
+- Mapped generated Geppetto `ToolCall` blocks back to assistant `tool_calls` with `finish_reason: "tool_calls"`.
+- Added `pkg/runtime/GeppettoChatCompletionService` for non-streaming and streaming chat inference.
+- Added `POST /v1/chat/completions` in `pkg/server` and wired `cmd/llm-proxy-server` to create the chat service when `--profiles` is set.
+- Generalized SSE writing so both legacy Completions and Chat Completions can share the same handler-owned stream writer.
+- Added streaming support for `EventTextDelta`, `EventToolCallStarted`, `EventToolCallArgumentsDelta`, and fallback `EventToolCallRequested`.
+- Updated `examples/README.md` with chat, streaming chat, tool advertisement, and tool-result examples.
+- Ran:
+  - `cd llm-proxy && go test ./... -count=1`
+  - `cd llm-proxy && GOWORK=off go test ./... -count=1`
+
+### Why
+
+- `/v1/chat/completions` is the practical next endpoint for OpenAI-compatible clients.
+- Tool-call shapes are required for agent clients, even if proxy-side tool execution is deliberately out of scope.
+- Reusing Geppetto turn tool definitions keeps provider-specific tool behavior inside Geppetto instead of duplicating provider adapters in the proxy.
+
+### What worked
+
+- All package tests pass in normal workspace mode and with `GOWORK=off`.
+- Fake engines can drive text responses, generated tool calls, text streaming, and tool-call streaming without live provider credentials.
+- The same profile resolver and engine provider seams worked for Chat Completions without architectural changes.
+
+### What didn't work
+
+- A mid-command typo attempted `git -C llm` instead of `git -C llm-proxy`; the command failed with `fatal: cannot change to 'llm': No such file or directory`. I inspected staging state afterwards and committed the already staged Phase 6 work correctly.
+- An attempted Python edit of the design doc failed with `SyntaxError: unterminated string literal`; I replaced the affected design sections using targeted `edit` replacements instead.
+
+### What I learned
+
+- Geppetto already has the turn block vocabulary needed for the OpenAI client-driven tool loop: `NewToolCallBlock`, `NewToolUseBlock`, `engine.KeyToolDefinitions`, and `engine.KeyToolConfig`.
+- Chat Completions can represent visible text and tool-call argument streaming, but still does not provide a clean standard channel for private reasoning deltas.
+
+### What was tricky to build
+
+- The message schema has conditional validity. `system`, `developer`, `user`, and `tool` messages need string content; assistant messages may have string content, tool calls, or both. Tool messages also require `tool_call_id`. The decoder keeps `content` as `json.RawMessage` so it can distinguish string content, `null`, unsupported arrays, and missing content.
+- Streaming tool calls need stable indexes. The event sink keeps a small `toolCallID -> index` map so `EventToolCallStarted` and later argument deltas refer to the same OpenAI `delta.tool_calls[index]` entry.
+- Final stream finish reason needs both inference metadata and generated blocks. If generated tool-call blocks are present, the final finish reason should be `tool_calls` even when provider metadata is minimal.
+
+### What warrants a second pair of eyes
+
+- Tool-choice mapping is intentionally coarse: `auto`, `none`, and `required` map to Geppetto tool choices; a specific OpenAI function choice currently maps to `required` rather than enforcing one named tool.
+- `EventToolCallRequested` is used as a fallback full-argument chunk; if a provider emits both argument deltas and requested events, clients could see duplicate arguments. This should be checked against actual Geppetto provider event behavior.
+- The request decoder still uses `DisallowUnknownFields`, which may reject real OpenAI-compatible clients that send additional fields.
+
+### What should be done in the future
+
+- Add live provider smoke tests for chat text and tool-call generation.
+- Decide whether specific `tool_choice` object requests should constrain allowed tools on the turn.
+- Add multimodal content arrays only after the text/tool path is validated.
+
+### Code review instructions
+
+- Start with `pkg/openaichat/types.go` for the OpenAI request/response subset.
+- Review `pkg/openaichat/mapper.go` for message, tool definition, tool-call, and tool-result mapping.
+- Review `pkg/runtime/chat_service.go` for Geppetto profile/engine/inference flow.
+- Review `pkg/server/server.go` and `pkg/server/sse.go` for routing and stream ownership.
+- Validate with:
+  - `cd llm-proxy && go test ./... -count=1`
+  - `cd llm-proxy && GOWORK=off go test ./... -count=1`
+
+### Technical details
+
+- New and changed implementation files:
+  - `pkg/openaichat/types.go`
+  - `pkg/openaichat/mapper.go`
+  - `pkg/openaichat/stream.go`
+  - `pkg/runtime/chat_service.go`
+  - `pkg/server/server.go`
+  - `pkg/server/sse.go`
+  - `pkg/server/errors.go`
+  - `cmd/llm-proxy-server/main.go`
+  - `examples/README.md`

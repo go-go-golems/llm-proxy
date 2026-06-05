@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/go-go-golems/llm-proxy/pkg/openaichat"
 	"github.com/go-go-golems/llm-proxy/pkg/openaicompletions"
 )
 
@@ -31,11 +32,17 @@ func writeOpenAIError(w http.ResponseWriter, status int, err error) {
 	if err != nil {
 		resp.Error.Message = err.Error()
 	}
-	var fieldErr openaicompletions.FieldError
-	if errors.As(err, &fieldErr) {
+	var completionFieldErr openaicompletions.FieldError
+	if errors.As(err, &completionFieldErr) {
 		resp.Error.Type = "invalid_request_error"
-		resp.Error.Param = fieldErr.Field
-		resp.Error.Code = fieldErr.Code
+		resp.Error.Param = completionFieldErr.Field
+		resp.Error.Code = completionFieldErr.Code
+	}
+	var chatFieldErr openaichat.FieldError
+	if errors.As(err, &chatFieldErr) {
+		resp.Error.Type = "invalid_request_error"
+		resp.Error.Param = chatFieldErr.Field
+		resp.Error.Code = chatFieldErr.Code
 	}
 	_ = json.NewEncoder(w).Encode(resp)
 }

@@ -17,6 +17,7 @@ func main() {
 	flag.Parse()
 	var modelLister server.ModelLister
 	var completionService server.CompletionService
+	var chatCompletionService server.ChatCompletionService
 	if *profiles != "" {
 		resolver, err := profilespkg.NewYAMLResolver(*profiles)
 		if err != nil {
@@ -24,9 +25,10 @@ func main() {
 		}
 		modelLister = profileModelLister{resolver: resolver}
 		completionService = &runtimepkg.GeppettoCompletionService{Profiles: resolver}
+		chatCompletionService = &runtimepkg.GeppettoChatCompletionService{Profiles: resolver}
 	}
 
-	srv := server.New(server.Options{CompletionService: completionService, ModelLister: modelLister})
+	srv := server.New(server.Options{CompletionService: completionService, ChatCompletionService: chatCompletionService, ModelLister: modelLister})
 	log.Printf("llm-proxy-server listening on %s", *listen)
 	if err := http.ListenAndServe(*listen, srv.Handler()); err != nil {
 		log.Fatal(err)

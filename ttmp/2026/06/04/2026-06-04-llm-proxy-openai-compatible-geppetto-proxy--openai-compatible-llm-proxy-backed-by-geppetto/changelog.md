@@ -211,3 +211,25 @@ Phase 6: added Chat Completions wire types and Geppetto turn mapping
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/openaichat/types.go — Chat Completions request/response/chunk structs and validation
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/01-investigation-diary.md — Phase 6 diary entry
 
+
+## 2026-06-04
+
+Implemented /v1/chat/completions with text messages, function tool mapping, non-streaming responses, SSE streaming, examples, and validation
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/examples/README.md — Chat examples
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/openaichat — Chat wire
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/runtime/chat_service.go — Chat runtime service
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/server/server.go — Chat HTTP endpoint
+
+
+## 2026-06-04
+
+Recorded Chat Completions implementation and tool support in diary
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/openaichat/mapper.go — Tool mapping implementation
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/01-investigation-diary.md — Diary step for Chat Completions implementation and tool support
+

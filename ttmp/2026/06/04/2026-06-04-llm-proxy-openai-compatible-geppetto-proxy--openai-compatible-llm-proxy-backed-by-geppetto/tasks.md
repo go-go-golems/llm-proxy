@@ -65,34 +65,38 @@
 - [x] Map chat messages to Geppetto `turns.Turn` blocks in order.
 - [x] Map generated assistant blocks to a `chat.completion` response.
 - [x] Add mapper/unit tests for valid messages, missing messages, unsupported roles, unsupported content, and generated assistant text.
+- [x] Map OpenAI function `tools` to Geppetto turn tool definitions and tool config.
+- [x] Map assistant `tool_calls` and `role: tool` results to Geppetto tool-call/tool-use blocks.
+- [x] Map generated Geppetto tool-call blocks back to OpenAI assistant `tool_calls`.
 
 ### Phase 7: Chat runtime service
 
-- [ ] Add `pkg/runtime.ChatCompletionService` using the existing profile resolver and engine provider seams.
-- [ ] Run `engine.RunInferenceWithResult` for non-streaming chat completions.
-- [ ] Map Geppetto usage and finish metadata to Chat Completions usage and finish reason.
-- [ ] Add fake-engine tests for successful chat completion and engine error propagation.
+- [x] Add `pkg/runtime.ChatCompletionService` using the existing profile resolver and engine provider seams.
+- [x] Run `engine.RunInferenceWithResult` for non-streaming chat completions.
+- [x] Map Geppetto usage and finish metadata to Chat Completions usage and finish reason.
+- [x] Add fake-engine tests for successful chat completion and engine error propagation.
 
 ### Phase 8: Chat HTTP endpoint
 
-- [ ] Add `POST /v1/chat/completions` to `pkg/server`.
-- [ ] Add `ChatCompletionService` and optional streaming chat service interfaces in `pkg/server`.
-- [ ] Wire `cmd/llm-proxy-server` to create a chat service when `--profiles` is provided.
-- [ ] Add handler tests for non-streaming chat response and validation errors.
+- [x] Add `POST /v1/chat/completions` to `pkg/server`.
+- [x] Add `ChatCompletionService` and optional streaming chat service interfaces in `pkg/server`.
+- [x] Wire `cmd/llm-proxy-server` to create a chat service when `--profiles` is provided.
+- [x] Add handler tests for non-streaming chat response and validation errors.
 
 ### Phase 9: Chat streaming bridge
 
-- [ ] Add chat stream frame constructors and a Geppetto `EventTextDelta` sink.
-- [ ] Emit initial assistant-role chunk, content delta chunks, final finish chunk, and `[DONE]`.
-- [ ] Add a chat SSE writer or genericize the existing SSE helper.
-- [ ] Add fake-engine and handler tests for streaming chat chunks.
+- [x] Add chat stream frame constructors and a Geppetto `EventTextDelta` sink.
+- [x] Emit initial assistant-role chunk, content delta chunks, final finish chunk, and `[DONE]`.
+- [x] Add a chat SSE writer or genericize the existing SSE helper.
+- [x] Add fake-engine and handler tests for streaming chat chunks.
+- [x] Stream Geppetto tool-call events as OpenAI Chat Completions `delta.tool_calls` chunks.
 
 ### Phase 10: Chat examples and validation
 
-- [ ] Update `examples/README.md` with `/v1/chat/completions` non-streaming and streaming examples.
-- [ ] Run `go test ./... -count=1` and `GOWORK=off go test ./... -count=1`.
-- [ ] Update diary, changelog, and research logbook if relevant.
-- [ ] Commit phase-sized changes with focused messages.
+- [x] Update `examples/README.md` with `/v1/chat/completions` non-streaming and streaming examples.
+- [x] Run `go test ./... -count=1` and `GOWORK=off go test ./... -count=1`.
+- [x] Update diary, changelog, and research logbook if relevant.
+- [x] Commit phase-sized changes with focused messages.
 
 ## Deferred tasks
 

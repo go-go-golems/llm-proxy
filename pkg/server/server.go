@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-go-golems/llm-proxy/pkg/openaichat"
 	"github.com/go-go-golems/llm-proxy/pkg/openaicompletions"
 )
 
@@ -15,6 +16,14 @@ type CompletionService interface {
 
 type StreamingCompletionService interface {
 	Stream(ctx context.Context, req *openaicompletions.CompletionRequest) (<-chan openaicompletions.CompletionStreamFrame, error)
+}
+
+type ChatCompletionService interface {
+	Complete(ctx context.Context, req *openaichat.ChatCompletionRequest) (*openaichat.ChatCompletionResponse, error)
+}
+
+type StreamingChatCompletionService interface {
+	Stream(ctx context.Context, req *openaichat.ChatCompletionRequest) (<-chan openaichat.ChatStreamFrame, error)
 }
 
 type ModelLister interface {
@@ -28,15 +37,17 @@ type ModelDescriptor struct {
 }
 
 type Options struct {
-	CompletionService CompletionService
-	ModelLister       ModelLister
-	MaxBodyBytes      int64
+	CompletionService     CompletionService
+	ChatCompletionService ChatCompletionService
+	ModelLister           ModelLister
+	MaxBodyBytes          int64
 }
 
 type Server struct {
-	completionService CompletionService
-	modelLister       ModelLister
-	maxBodyBytes      int64
+	completionService     CompletionService
+	chatCompletionService ChatCompletionService
+	modelLister           ModelLister
+	maxBodyBytes          int64
 }
 
 func New(opts Options) *Server {
@@ -48,7 +59,11 @@ func New(opts Options) *Server {
 	if service == nil {
 		service = StaticCompletionService{}
 	}
-	return &Server{completionService: service, modelLister: opts.ModelLister, maxBodyBytes: maxBodyBytes}
+	chatService := opts.ChatCompletionService
+	if chatService == nil {
+		chatService = StaticChatCompletionService{}
+	}
+	return &Server{completionService: service, chatCompletionService: chatService, modelLister: opts.ModelLister, maxBodyBytes: maxBodyBytes}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -56,6 +71,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
 	mux.HandleFunc("GET /v1/models", s.handleModels)
 	mux.HandleFunc("POST /v1/completions", s.handleCompletions)
+	mux.HandleFunc("POST /v1/chat/completions", s.handleChatCompletions)
 	return mux
 }
 
@@ -105,6 +121,35 @@ func (s *Server) handleCompletions(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, s.maxBodyBytes)
+	req, err := openaichat.DecodeChatCompletionRequest(r.Body)
+	if err != nil {
+		writeOpenAIError(w, http.StatusBadRequest, err)
+		return
+	}
+	if req.Stream {
+		streamer, ok := s.chatCompletionService.(StreamingChatCompletionService)
+		if !ok {
+			writeOpenAIError(w, http.StatusBadRequest, openaichat.FieldError{Field: "stream", Message: "streaming is not implemented yet", Code: "stream_not_implemented"})
+			return
+		}
+		frames, err := streamer.Stream(r.Context(), req)
+		if err != nil {
+			writeOpenAIError(w, http.StatusInternalServerError, err)
+			return
+		}
+		s.writeChatSSE(w, r, frames)
+		return
+	}
+	resp, err := s.chatCompletionService.Complete(r.Context(), req)
+	if err != nil {
+		writeOpenAIError(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
 type StaticCompletionService struct{}
 
 func (StaticCompletionService) Complete(_ context.Context, req *openaicompletions.CompletionRequest) (*openaicompletions.CompletionResponse, error) {
@@ -121,6 +166,33 @@ func (StaticCompletionService) Complete(_ context.Context, req *openaicompletion
 			Text:         "prototype completion for: " + prompt,
 			Index:        0,
 			Logprobs:     nil,
+			FinishReason: "stop",
+		}},
+	}, nil
+}
+
+type StaticChatCompletionService struct{}
+
+func (StaticChatCompletionService) Complete(_ context.Context, req *openaichat.ChatCompletionRequest) (*openaichat.ChatCompletionResponse, error) {
+	content := ""
+	for i := len(req.Messages) - 1; i >= 0; i-- {
+		if req.Messages[i].Role == "user" {
+			text, err := req.Messages[i].ContentString()
+			if err != nil {
+				return nil, err
+			}
+			content = text
+			break
+		}
+	}
+	return &openaichat.ChatCompletionResponse{
+		ID:      openaichat.NewChatCompletionID(),
+		Object:  "chat.completion",
+		Created: time.Now().Unix(),
+		Model:   req.Model,
+		Choices: []openaichat.ChatChoice{{
+			Index:        0,
+			Message:      openaichat.ChatMessageOut{Role: "assistant", Content: "prototype chat completion for: " + content},
 			FinishReason: "stop",
 		}},
 	}, nil
