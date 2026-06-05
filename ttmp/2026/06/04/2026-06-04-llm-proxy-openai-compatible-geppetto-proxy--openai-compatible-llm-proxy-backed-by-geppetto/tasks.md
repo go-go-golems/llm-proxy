@@ -55,7 +55,46 @@
 - [x] Update the diary after each implementation phase with commands, failures, and review instructions.
 - [x] Commit phase-sized changes with focused messages.
 
+## Future implementation tasks (Chat Completions endpoint)
+
+### Phase 6: Chat wire package and text-only turn mapping
+
+- [ ] Add `pkg/openaichat` request/response/chunk structs for `/v1/chat/completions`.
+- [ ] Decode and validate required `model` and non-empty `messages`.
+- [ ] Support text-only string content for `system`, `developer`, `user`, and `assistant` roles.
+- [ ] Map chat messages to Geppetto `turns.Turn` blocks in order.
+- [ ] Map generated assistant blocks to a `chat.completion` response.
+- [ ] Add mapper/unit tests for valid messages, missing messages, unsupported roles, unsupported content, and generated assistant text.
+
+### Phase 7: Chat runtime service
+
+- [ ] Add `pkg/runtime.ChatCompletionService` using the existing profile resolver and engine provider seams.
+- [ ] Run `engine.RunInferenceWithResult` for non-streaming chat completions.
+- [ ] Map Geppetto usage and finish metadata to Chat Completions usage and finish reason.
+- [ ] Add fake-engine tests for successful chat completion and engine error propagation.
+
+### Phase 8: Chat HTTP endpoint
+
+- [ ] Add `POST /v1/chat/completions` to `pkg/server`.
+- [ ] Add `ChatCompletionService` and optional streaming chat service interfaces in `pkg/server`.
+- [ ] Wire `cmd/llm-proxy-server` to create a chat service when `--profiles` is provided.
+- [ ] Add handler tests for non-streaming chat response and validation errors.
+
+### Phase 9: Chat streaming bridge
+
+- [ ] Add chat stream frame constructors and a Geppetto `EventTextDelta` sink.
+- [ ] Emit initial assistant-role chunk, content delta chunks, final finish chunk, and `[DONE]`.
+- [ ] Add a chat SSE writer or genericize the existing SSE helper.
+- [ ] Add fake-engine and handler tests for streaming chat chunks.
+
+### Phase 10: Chat examples and validation
+
+- [ ] Update `examples/README.md` with `/v1/chat/completions` non-streaming and streaming examples.
+- [ ] Run `go test ./... -count=1` and `GOWORK=off go test ./... -count=1`.
+- [ ] Update diary, changelog, and research logbook if relevant.
+- [ ] Commit phase-sized changes with focused messages.
+
 ## Deferred tasks
 
-- [ ] Add OpenAI Responses support from design doc 02 after the Completions prototype works.
+- [ ] Add OpenAI Responses support from design doc 02 after Completions and Chat Completions prototypes work.
 - [ ] Add route aliases, auth, per-user keys, and direct provider adapters only after the simple Geppetto-engine prototype works and a concrete need appears.

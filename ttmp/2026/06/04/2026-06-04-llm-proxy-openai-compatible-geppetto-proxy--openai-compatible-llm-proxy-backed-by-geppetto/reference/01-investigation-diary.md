@@ -36,6 +36,8 @@ RelatedFiles:
       Note: Revised simple prototype design responding to scope correction
     - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/design-doc/03-simple-geppetto-engine-openai-completions-proxy-prototype.md
       Note: Completions-first copy/adaptation preserving the Responses design
+    - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/design-doc/04-simple-geppetto-engine-openai-chat-completions-proxy-prototype.md
+      Note: New design for /v1/chat/completions endpoint
     - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/02-research-logbook.md
       Note: Research resource usefulness/outdatedness logbook created for the ticket
 ExternalSources: []
@@ -44,6 +46,7 @@ LastUpdated: 2026-06-04T19:45:00-04:00
 WhatFor: Use this to understand how the design doc was produced, what evidence was gathered, and what remains to validate during implementation.
 WhenToUse: Read before continuing the llm-proxy implementation or reviewing the design decisions.
 ---
+
 
 
 
@@ -1311,3 +1314,64 @@ The remote listing now includes `2026-06-05 llm-proxy research logbook`.
 
 - Remote path: `/ai/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy`
 - Remote file: `2026-06-05 llm-proxy research logbook`
+
+## Step 16: Design the Chat Completions endpoint and add ticket phases
+
+This step created the implementation design for `POST /v1/chat/completions`. The design keeps the same Geppetto-engine architecture as `/v1/completions`: the request `model` is a Geppetto profile slug, provider setup lives in profile YAML, and the proxy maps only the OpenAI boundary to and from Geppetto turns and events.
+
+The ticket now has detailed phases for chat wire types, chat runtime service, HTTP endpoint wiring, streaming chunks, examples, and validation. The design intentionally supports text-only chat first so the endpoint can be implemented quickly without adding tools, multimodal content, or direct provider adapters.
+
+### Prompt Context
+
+**User prompt (verbatim):** "oh, you need to do /v1/chat/completinos next. Create a design document, then implement that, in the same way. Add tasks to the ticket, and then build it. I'm going swimming, I expect you to be done when I get back. Write a diary as you go, and commit at appropriate intervals."
+
+**Assistant interpretation:** Add `/v1/chat/completions` as the next endpoint, first by writing a design doc and phase tasks, then implement phase by phase with diary and commits.
+
+**Inferred user intent:** Extend the working Geppetto-backed proxy from legacy Completions to Chat Completions while preserving the same simple architecture and documentation discipline.
+
+### What I did
+
+- Created `design-doc/04-simple-geppetto-engine-openai-chat-completions-proxy-prototype.md`.
+- Added detailed Phase 6–10 tasks to `tasks.md`.
+- Related the design to current Completions implementation files and Geppetto turn/event references.
+- Updated the changelog.
+
+### Why
+
+- Chat Completions is the practical next OpenAI-compatible endpoint after `/v1/completions`.
+- The existing profile resolver, engine provider, mapper pattern, and SSE pattern can be reused instead of introducing a new architecture.
+
+### What worked
+
+- The design is smaller than the Responses design and fits the existing code structure.
+- The phase list gives concrete commit boundaries for implementation.
+
+### What didn't work
+
+- N/A.
+
+### What I learned
+
+- `/v1/chat/completions` can be added as a sibling `pkg/openaichat` mapper without disturbing `pkg/openaicompletions`.
+
+### What was tricky to build
+
+- The design had to define the supported subset clearly. I chose text-only string content and deferred tools and multimodal content to avoid making the endpoint look more compatible than it is.
+
+### What warrants a second pair of eyes
+
+- Confirm whether `developer` messages should map to Geppetto system blocks in the prototype.
+- Confirm whether unknown fields should be rejected as in Completions or tolerated for client compatibility.
+
+### What should be done in the future
+
+- Implement Phase 6 next and commit before moving to runtime service wiring.
+
+### Code review instructions
+
+- Start with `design-doc/04-simple-geppetto-engine-openai-chat-completions-proxy-prototype.md`.
+- Then review Phase 6–10 in `tasks.md`.
+
+### Technical details
+
+- New design doc: `/home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/design-doc/04-simple-geppetto-engine-openai-chat-completions-proxy-prototype.md`
