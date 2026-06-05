@@ -38,6 +38,10 @@ RelatedFiles:
       Note: Evidence for OpenAI Chat request shape.
     - Path: ../../../../../../../geppetto/pkg/steps/ai/openai_responses/helpers.go
       Note: Evidence for OpenAI Responses mapping rules.
+    - Path: ../../../../../../../geppetto/ttmp/2026/06/05/2026-06-05-geppetto-gemini-api-polish--geppetto-gemini-api-polish-for-gemini-3-flash/scripts/04-gemini-llm-proxy-smoke.py
+      Note: Gemini-backed OpenAI-compatible proxy smoke runner in Geppetto ticket
+    - Path: ../../../../../../../geppetto/ttmp/2026/06/05/2026-06-05-geppetto-gemini-api-polish--geppetto-gemini-api-polish-for-gemini-3-flash/scripts/artifacts/llm-proxy-gemini-smoke-summary.json
+      Note: Gemini-backed proxy smoke summary; all cases passed
     - Path: examples/README.md
       Note: |-
         Phase 10 examples
@@ -54,6 +58,10 @@ RelatedFiles:
         Relaxed Chat Completions decoder for Pinocchio compatibility
     - Path: pkg/openaichat/types_test.go
       Note: Regression test for unknown OpenAI compatibility fields sent by Pinocchio
+    - Path: pkg/profiles/resolver.go
+      Note: Gemini proxy smoke fix; merge sparse profile overlay onto base Geppetto settings
+    - Path: pkg/profiles/resolver_test.go
+      Note: Regression test for sparse profile overlay merge onto base settings
     - Path: pkg/runtime/chat_service.go
       Note: |-
         Phase 7 runtime implementation
@@ -108,6 +116,8 @@ LastUpdated: 2026-06-04T19:45:00-04:00
 WhatFor: Use this to understand how the design doc was produced, what evidence was gathered, and what remains to validate during implementation.
 WhenToUse: Read before continuing the llm-proxy implementation or reviewing the design decisions.
 ---
+
+
 
 
 
@@ -2185,3 +2195,72 @@ Live proxy Chat Completions stream artifacts:
 - `scripts/artifacts/llm-proxy-thinking-chat-stream-summary-after-claude-thinking-fix.json`
 - `scripts/artifacts/llm-proxy-thinking-chat-stream-claude-thinking-sonnet-smoke.sse`
 - `scripts/artifacts/llm-proxy-thinking-chat-stream-openai-responses-thinking-smoke.sse`
+
+## Step 13: Validate Gemini through llm-proxy after Geppetto provider migration
+
+This step records the proxy-side follow-up from the Gemini provider polish work. After direct Geppetto Gemini smokes passed, I ran Gemini-backed OpenAI-compatible smoke tests through `llm-proxy` and fixed the one proxy-specific integration issue that surfaced.
+
+The issue was that `llm-proxy` used sparse resolved Geppetto profile settings directly. Gemini profiles often rely on base/default settings for provider-specific structs, so engine creation failed until the resolver merged resolved profile overlays onto `settings.NewInferenceSettings()`.
+
+### Prompt Context
+
+**User prompt (verbatim):** "go ahead"
+
+**Assistant interpretation:** Continue from provider-level Gemini validation into proxy-level Gemini smoke testing.
+
+**Inferred user intent:** Confirm the modernized Gemini provider works through the OpenAI-compatible `llm-proxy` surface.
+
+### What I did
+
+- Updated `pkg/profiles/resolver.go` to merge resolved profile settings onto base Geppetto inference settings.
+- Added `TestYAMLResolverMergesSparseProfileOntoBaseSettings` in `pkg/profiles/resolver_test.go`.
+- Added/reran Gemini proxy smoke evidence from the Geppetto Gemini ticket.
+- Validated `/v1/models`, `/v1/completions`, `/v1/chat/completions`, SSE streaming, tool calls, and client-driven tool loops with `gemini-3-flash-preview`.
+
+### Why
+
+- Provider correctness was already validated directly; the remaining risk was proxy mapping and profile-resolution behavior.
+- The proxy must create engines from complete Geppetto settings, not sparse profile overlays.
+
+### What worked
+
+- Gemini-backed proxy smoke summary passed all cases:
+  - `/home/manuel/workspaces/2026-06-04/llm-proxy/geppetto/ttmp/2026/06/05/2026-06-05-geppetto-gemini-api-polish--geppetto-gemini-api-polish-for-gemini-3-flash/scripts/artifacts/llm-proxy-gemini-smoke-summary.json`
+- `go test ./... -count=1` passes in the `llm-proxy` repo.
+
+### What didn't work
+
+- Initial proxy smokes failed with:
+
+```text
+create engine for profile "gemini-3-flash-preview": invalid settings for provider gemini: Gemini-specific settings cannot be nil
+```
+
+### What I learned
+
+- Sparse engine-profile overlays are normal; proxy code should follow Geppetto CLI bootstrap semantics and merge them with defaults.
+
+### What was tricky to build
+
+- The failure looked like a Gemini provider error at first, but direct Geppetto smokes proved the provider was healthy. That narrowed the bug to proxy profile resolution.
+
+### What warrants a second pair of eyes
+
+- Review whether all profile resolver call sites should use this base-merge behavior, and whether a dedicated regression test should be added for sparse Gemini profiles.
+
+### What should be done in the future
+
+- Consider adding the same sparse-profile regression coverage around any future non-YAML profile resolvers.
+
+### Code review instructions
+
+- Start with `pkg/profiles/resolver.go`, then read `pkg/profiles/resolver_test.go`.
+- Validate with `go test ./... -count=1` in the `llm-proxy` repo.
+
+### Technical details
+
+Final smoke runner:
+
+```bash
+python3 /home/manuel/workspaces/2026-06-04/llm-proxy/geppetto/ttmp/2026/06/05/2026-06-05-geppetto-gemini-api-polish--geppetto-gemini-api-polish-for-gemini-3-flash/scripts/04-gemini-llm-proxy-smoke.py --profile gemini-3-flash-preview
+```

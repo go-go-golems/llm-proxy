@@ -330,3 +330,23 @@ Implemented Claude extended thinking stream parsing and validated Claude/OpenAI 
 - /home/manuel/workspaces/2026-06-04/llm-proxy/geppetto/pkg/steps/ai/claude/content-block-merger.go — Claude thinking event mapping
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/artifacts/llm-proxy-thinking-smoke-summary-after-claude-thinking-fix.json — Direct engine thinking smoke evidence
 
+
+## 2026-06-05
+
+Fix profile resolver to merge sparse Geppetto profile overlays onto base settings; Gemini-backed proxy smokes pass
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/geppetto/ttmp/2026/06/05/2026-06-05-geppetto-gemini-api-polish--geppetto-gemini-api-polish-for-gemini-3-flash/scripts/artifacts/llm-proxy-gemini-smoke-summary.json — Gemini proxy smoke evidence
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/profiles/resolver.go — Profile resolver base merge fix
+
+
+## 2026-06-05
+
+Add regression test for sparse Geppetto profile overlays in llm-proxy resolver
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/profiles/resolver.go — Resolver behavior under test
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/profiles/resolver_test.go — Resolver regression test
+
