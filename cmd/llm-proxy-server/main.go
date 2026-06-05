@@ -5,6 +5,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"time"
 
 	profilespkg "github.com/go-go-golems/llm-proxy/pkg/profiles"
 	runtimepkg "github.com/go-go-golems/llm-proxy/pkg/runtime"
@@ -29,8 +30,15 @@ func main() {
 	}
 
 	srv := server.New(server.Options{CompletionService: completionService, ChatCompletionService: chatCompletionService, ModelLister: modelLister})
+	httpServer := &http.Server{
+		Addr:              *listen,
+		Handler:           srv.Handler(),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
 	log.Printf("llm-proxy-server listening on %s", *listen)
-	if err := http.ListenAndServe(*listen, srv.Handler()); err != nil {
+	if err := httpServer.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
 }
