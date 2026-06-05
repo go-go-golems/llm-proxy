@@ -1569,7 +1569,7 @@ The first smoke attempts found two practical compatibility and environment issue
 
 **Inferred user intent:** Validate the proxy with a real local client stack rather than only unit tests and curl.
 
-**Commit (code):** pending — "Prototype: smoke test chat completions with Pinocchio"
+**Commit (code):** c9284d1133ad5e5d619c26fbdf3473c8bcb32144 — "Prototype: smoke test chat completions with Pinocchio"
 
 ### What I did
 

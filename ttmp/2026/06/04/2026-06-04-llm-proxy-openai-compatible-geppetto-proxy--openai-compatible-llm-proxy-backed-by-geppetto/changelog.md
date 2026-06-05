@@ -253,3 +253,12 @@ Smoke tested /v1/chat/completions through Pinocchio and relaxed chat decoding fo
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/openaichat/types.go — Unknown Chat Completions fields are tolerated
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/01-investigation-diary.md — Pinocchio smoke-test diary
 
+
+## 2026-06-04
+
+Annotated Pinocchio smoke-test diary with commit c9284d1
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/01-investigation-diary.md — Commit hash for Pinocchio smoke-test diary
+
