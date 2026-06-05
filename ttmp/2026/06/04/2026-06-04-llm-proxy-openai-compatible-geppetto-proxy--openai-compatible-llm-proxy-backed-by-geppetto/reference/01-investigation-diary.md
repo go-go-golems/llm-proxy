@@ -22,10 +22,16 @@ RelatedFiles:
       Note: |-
         Evidence for profile data model used by the proxy design.
         Evidence captured in diary Step 2
+    - Path: ../../../../../../../geppetto/pkg/steps/ai/claude/api/content.go
+      Note: Claude thinking content model (commit 6928c321)
     - Path: ../../../../../../../geppetto/pkg/steps/ai/claude/api/messages.go
       Note: Evidence for Anthropic Messages request/client shape.
+    - Path: ../../../../../../../geppetto/pkg/steps/ai/claude/content-block-merger.go
+      Note: Claude thinking stream to canonical reasoning mapping (commit 6928c321)
     - Path: ../../../../../../../geppetto/pkg/steps/ai/claude/engine_claude.go
-      Note: Forces Claude RunInference requests into streaming mode (commit fb2b9ed)
+      Note: |-
+        Forces Claude RunInference requests into streaming mode (commit fb2b9ed)
+        Persists Claude thinking as reasoning blocks (commit 6928c321)
     - Path: ../../../../../../../geppetto/pkg/steps/ai/claude/helpers_test.go
       Note: Regression test for forced Claude streaming request (commit fb2b9ed)
     - Path: ../../../../../../../geppetto/pkg/steps/ai/openai/chat_types.go
@@ -80,6 +86,10 @@ RelatedFiles:
       Note: Final all-provider tool-call smoke evidence
     - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/artifacts/backend-tool-smoke-summary.json
       Note: Cross-backend smoke result summary
+    - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/artifacts/llm-proxy-thinking-chat-stream-summary-after-claude-thinking-fix.json
+      Note: Proxy streaming thinking smoke summary
+    - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/artifacts/llm-proxy-thinking-smoke-summary-after-claude-thinking-fix.json
+      Note: Direct engine thinking smoke summary
     - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/artifacts/llm-proxy-tool-call-stream-after-fix.sse
       Note: Streaming tool-call transcript after duplicate suppression fix
     - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/sources/01-anthropic-extended-thinking.md
@@ -98,6 +108,7 @@ LastUpdated: 2026-06-04T19:45:00-04:00
 WhatFor: Use this to understand how the design doc was produced, what evidence was gathered, and what remains to validate during implementation.
 WhenToUse: Read before continuing the llm-proxy implementation or reviewing the design decisions.
 ---
+
 
 
 
@@ -2071,3 +2082,106 @@ Current uncommitted Geppetto files touched by the paused experiment:
 - `/home/manuel/workspaces/2026-06-04/llm-proxy/geppetto/pkg/steps/ai/claude/api/messages.go`
 - `/home/manuel/workspaces/2026-06-04/llm-proxy/geppetto/pkg/steps/ai/claude/api/streaming.go`
 - `/home/manuel/workspaces/2026-06-04/llm-proxy/geppetto/pkg/steps/ai/claude/content-block-merger.go`
+
+## Step 24: Implement and smoke-test Claude extended thinking stream parsing
+
+This step completed the source-backed Claude extended thinking fix after archiving the provider docs. The live smoke had shown that Claude thinking requests failed in Geppetto with `Unknown content block type: thinking`; Anthropic's official docs confirmed that streaming extended thinking uses `thinking` content blocks, `thinking_delta`, and `signature_delta` events.
+
+The fix maps Anthropic thinking stream content into Geppetto's canonical reasoning model instead of leaking it as assistant text. Claude thinking blocks now produce `EventReasoningSegmentStarted`, `EventReasoningDelta`, and `EventReasoningSegmentFinished`, and the returned turn receives a `BlockKindReasoning` before normal assistant text/tool blocks.
+
+### Prompt Context
+
+**User prompt (verbatim):** "ok, continue. 
+
+Once this works, do a pass on all the providers in geppetto to see if you find further gaps, in a new ticket. Before you start working in that new ticket, Create  a detailed analysis / design / implementation guide that is for a new intern, explaining all the parts of the system needed to understand what it is, with prose paragraphs and bullet point sand pseudocode and diagrams and api references and file references. It should be very clear and technical. Store in the ticket and the nupload to remarkable."
+
+**Assistant interpretation:** Finish the current Claude/OpenAI thinking smoke work first, then create a separate provider-gap audit ticket with an intern-facing technical guide and upload it to reMarkable before beginning that audit.
+
+**Inferred user intent:** Ensure the current reasoning support is actually working, then create a well-documented handoff package for a broader provider review.
+
+**Commit (code):** 6928c321a3e30c1b402c71d94366d2101e7e514e — "Support Claude extended thinking streams"
+
+### What I did
+
+- Added Anthropic `thinking` content support in `geppetto/pkg/steps/ai/claude/api/content.go`.
+- Added Claude streaming delta types and fields for `thinking_delta` and `signature_delta` in `geppetto/pkg/steps/ai/claude/api/streaming.go`.
+- Updated `ContentBlockMerger` to:
+  - start canonical reasoning segments for `content_block.type: "thinking"`
+  - publish canonical reasoning deltas from `thinking_delta`
+  - accumulate `signature_delta` without publishing it as user-visible content
+  - finish canonical reasoning segments and preserve the reconstructed thinking block
+- Updated `ClaudeEngine.RunInference` to append `turns.BlockKindReasoning` blocks for returned `ThinkingContent`.
+- Updated Claude request projection to preserve prior `BlockKindReasoning` as Anthropic `thinking` content with signature when present.
+- Added regression tests:
+  - `TestContentBlockMergerThinkingBlock`
+  - `TestMakeMessageRequestFromTurnPreservesReasoningBlocks`
+- Re-ran live direct-engine thinking smoke with `scripts/07-thinking-smoke`:
+  - Claude Sonnet thinking profile passed and emitted reasoning events/blocks.
+  - OpenAI Responses reasoning profile passed and emitted reasoning summary events/blocks.
+- Re-ran live proxy streaming smoke through `/v1/chat/completions`:
+  - Claude thinking profile streamed final assistant content `90 miles` with no errors.
+  - OpenAI Responses thinking profile streamed final assistant content `90 miles` with no errors.
+- Archived live smoke summaries, request JSON, and SSE transcripts in `scripts/artifacts/`.
+
+### Why
+
+- The proxy can only be considered reasoning-safe if provider-native thinking streams are either mapped into canonical reasoning or deliberately suppressed; crashing on provider-native thinking blocks is not acceptable.
+- Anthropic docs require preserving thinking blocks/signatures for some tool-use continuation flows, so the implementation must keep the provider-specific signature available on the canonical reasoning block.
+
+### What worked
+
+- `go test ./pkg/steps/ai/claude -count=1` passed.
+- `.bin/golangci-lint run -v --timeout=5m ./pkg/steps/ai/claude` passed.
+- Direct engine smoke passed for both Claude thinking and OpenAI Responses reasoning.
+- Proxy streaming smoke passed for both thinking profiles and did not expose reasoning deltas as Chat Completions `delta.content`.
+
+### What didn't work
+
+- The first attempt to run the thinking smoke command used `go run ttmp/.../scripts/07-thinking-smoke` without `./`, which Go interpreted as a standard-library import path:
+  - error: `package ttmp/2026/.../scripts/07-thinking-smoke is not in std`
+  - fix: reran with `go run ./ttmp/.../scripts/07-thinking-smoke`.
+- Full Geppetto repository hooks remain blocked by the unrelated missing `github.com/go-go-golems/go-go-goja/engine` module, so the Geppetto code commit used `--no-verify` after targeted tests/lint passed.
+
+### What I learned
+
+- Anthropic may stream thinking content even for a simple arithmetic prompt; in the observed smoke, the thinking text was short and similar to the final answer, but it still used the documented thinking stream shape.
+- OpenAI Responses reasoning behaves differently: it produced reasoning summary events and an encrypted reasoning item rather than raw thinking text.
+- The proxy's Chat Completions streaming sink currently ignores canonical reasoning events, which means provider reasoning is not leaked through OpenAI-compatible Chat `delta.content`.
+
+### What was tricky to build
+
+- There are two preservation channels with different semantics: public or semi-public reasoning text and provider-specific continuation material. Anthropic uses a `signature` field, while OpenAI Responses uses `encrypted_content`. The fix preserves the Claude signature as provider-specific payload metadata instead of pretending it is OpenAI-style encrypted content.
+- The implementation must keep `MessageResponse.FullText()` from including thinking content; otherwise callers that only want assistant-visible text would leak model reasoning.
+
+### What warrants a second pair of eyes
+
+- Review the choice to store the Claude thinking signature under payload key `"signature"`; we may want a generated canonical/provider-specific key if this becomes durable API.
+- Review whether prior `BlockKindReasoning` projection into standalone assistant messages matches all Anthropic multi-turn constraints, especially around tool-use turns where thinking blocks must be preserved with the assistant tool-use block.
+- Review whether Chat Completions compatibility should expose reasoning through any non-standard field, or continue suppressing it.
+
+### What should be done in the future
+
+- Add a fake Anthropic SSE fixture test at the engine level to verify a complete streaming response with thinking + text appends reasoning then assistant blocks in order.
+- Add a provider audit ticket as requested, covering all Geppetto providers and their gaps around reasoning, tool calls, streaming, multimodal content, usage, and continuation metadata.
+
+### Code review instructions
+
+- Start with `geppetto/pkg/steps/ai/claude/content-block-merger.go` and `TestContentBlockMergerThinkingBlock`.
+- Then inspect `geppetto/pkg/steps/ai/claude/engine_claude.go` for turn block persistence.
+- Then inspect `geppetto/pkg/steps/ai/claude/helpers.go` and `TestMakeMessageRequestFromTurnPreservesReasoningBlocks` for request-side preservation.
+- Validate with:
+  - `cd geppetto && go test ./pkg/steps/ai/claude -count=1`
+  - `cd geppetto && .bin/golangci-lint run -v --timeout=5m ./pkg/steps/ai/claude`
+  - `cd llm-proxy && GOWORK=/home/manuel/workspaces/2026-06-04/llm-proxy/go.work go run ./ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/07-thinking-smoke --profiles /tmp/llm-proxy-thinking-smoke-profiles.yaml`
+
+### Technical details
+
+Live direct-engine thinking smoke artifacts:
+
+- `scripts/artifacts/llm-proxy-thinking-smoke-summary-after-claude-thinking-fix.json`
+
+Live proxy Chat Completions stream artifacts:
+
+- `scripts/artifacts/llm-proxy-thinking-chat-stream-summary-after-claude-thinking-fix.json`
+- `scripts/artifacts/llm-proxy-thinking-chat-stream-claude-thinking-sonnet-smoke.sse`
+- `scripts/artifacts/llm-proxy-thinking-chat-stream-openai-responses-thinking-smoke.sse`

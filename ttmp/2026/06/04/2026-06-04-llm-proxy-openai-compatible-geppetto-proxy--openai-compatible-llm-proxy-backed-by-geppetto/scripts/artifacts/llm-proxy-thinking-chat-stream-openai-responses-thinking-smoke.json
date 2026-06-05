@@ -1,0 +1,10 @@
+{
+  "model": "openai-responses-thinking-smoke",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Solve internally: 45 miles per hour for 2 hours. Reply with only final number and unit."
+    }
+  ],
+  "stream": true
+}

@@ -1,0 +1,10 @@
+data: {"id":"chatcmpl_proxy_1780660696770645025","object":"chat.completion.chunk","created":1780660696,"model":"openai-responses-thinking-smoke","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl_proxy_1780660696770645025","object":"chat.completion.chunk","created":1780660696,"model":"openai-responses-thinking-smoke","choices":[{"index":0,"delta":{"content":"90"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl_proxy_1780660696770645025","object":"chat.completion.chunk","created":1780660696,"model":"openai-responses-thinking-smoke","choices":[{"index":0,"delta":{"content":" miles"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl_proxy_1780660696770645025","object":"chat.completion.chunk","created":1780660696,"model":"openai-responses-thinking-smoke","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]
+

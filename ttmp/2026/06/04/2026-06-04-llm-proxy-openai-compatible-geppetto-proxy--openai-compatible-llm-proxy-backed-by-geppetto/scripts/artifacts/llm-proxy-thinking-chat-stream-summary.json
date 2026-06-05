@@ -1,0 +1,16 @@
+[
+  {
+    "model": "claude-thinking-sonnet-smoke",
+    "curl_rc": 0,
+    "content": "90 miles",
+    "errors": [],
+    "raw_path": "/tmp/llm-proxy-thinking-chat-stream-claude-thinking-sonnet-smoke.sse"
+  },
+  {
+    "model": "openai-responses-thinking-smoke",
+    "curl_rc": 0,
+    "content": "90 miles",
+    "errors": [],
+    "raw_path": "/tmp/llm-proxy-thinking-chat-stream-openai-responses-thinking-smoke.sse"
+  }
+]

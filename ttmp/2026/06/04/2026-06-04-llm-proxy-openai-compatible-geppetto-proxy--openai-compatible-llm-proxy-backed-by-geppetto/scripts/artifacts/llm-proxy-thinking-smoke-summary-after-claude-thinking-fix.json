@@ -1,0 +1,294 @@
+[
+  {
+    "profile": "claude-thinking-sonnet-smoke",
+    "ok": true,
+    "duration_ms": 5261,
+    "result": {
+      "provider": "claude",
+      "model": "claude-sonnet-4-6",
+      "stop_reason": "end_turn",
+      "finish_class": "completed",
+      "usage": {
+        "input_tokens": 78,
+        "output_tokens": 17
+      },
+      "max_tokens": 4096,
+      "duration_ms": 405,
+      "extra": {
+        "claude_message_id": "msg_01GEraiFgPWVACRzSZB9qnYq",
+        "claude_model": "claude-sonnet-4-6",
+        "claude_role": "assistant",
+        "claude_stop_reason": "end_turn",
+        "settings": {
+          "ai-api-type": "claude",
+          "ai-engine": "claude-sonnet-4-6",
+          "ai-max-response-tokens": 4096,
+          "inference-thinking-budget": 1024,
+          "timeout": "2m0s",
+          "timeout_second": 120
+        }
+      }
+    },
+    "reasoning_blocks": [
+      {
+        "text": "90 miles"
+      }
+    ],
+    "assistant_text": "90 miles",
+    "assistant_text_size": 8,
+    "sink": {
+      "event_types": {
+        "provider-call-finished": 1,
+        "provider-call-metadata-updated": 1,
+        "provider-call-started": 1,
+        "reasoning-delta": 2,
+        "reasoning-segment-finished": 1,
+        "reasoning-segment-started": 1,
+        "text-delta": 1,
+        "text-segment-finished": 1,
+        "text-segment-started": 1
+      },
+      "reasoning_delta_count": 2,
+      "reasoning_delta_text": "90 miles",
+      "reasoning_delta_sources": {
+        "thinking": 2
+      },
+      "reasoning_finished_count": 1,
+      "reasoning_finished_texts": [
+        "90 miles"
+      ],
+      "reasoning_finished_sources": {
+        "thinking": 1
+      },
+      "provider_finished_stop": "end_turn",
+      "final_metadata_extra": {
+        "claude_message_id": "msg_01GEraiFgPWVACRzSZB9qnYq",
+        "claude_model": "claude-sonnet-4-6",
+        "claude_role": "assistant",
+        "claude_stop_reason": "end_turn",
+        "settings": {
+          "ai-api-type": "claude",
+          "ai-engine": "claude-sonnet-4-6",
+          "ai-max-response-tokens": 4096,
+          "inference-thinking-budget": 1024,
+          "timeout": "2m0s",
+          "timeout_second": 120
+        }
+      },
+      "samples": [
+        {
+          "type": "provider-call-started"
+        },
+        {
+          "type": "reasoning-segment-started"
+        },
+        {
+          "delta": "90",
+          "source": "thinking",
+          "type": "reasoning-delta"
+        },
+        {
+          "delta": " miles",
+          "source": "thinking",
+          "type": "reasoning-delta"
+        },
+        {
+          "type": "reasoning-segment-finished"
+        },
+        {
+          "type": "text-segment-started"
+        },
+        {
+          "type": "text-delta"
+        },
+        {
+          "type": "text-segment-finished"
+        },
+        {
+          "type": "provider-call-metadata-updated"
+        },
+        {
+          "type": "provider-call-finished"
+        }
+      ]
+    }
+  },
+  {
+    "profile": "openai-responses-thinking-smoke",
+    "ok": true,
+    "duration_ms": 3193,
+    "result": {
+      "provider": "open_responses",
+      "model": "gpt-5-nano",
+      "finish_class": "unknown",
+      "usage": {
+        "input_tokens": 45,
+        "output_tokens": 70
+      },
+      "max_tokens": 8192,
+      "duration_ms": 3193,
+      "extra": {
+        "reasoning_summary_text": "**Calculating distance**\n\nI need to compute distance using the formula distance = speed * time. For a speed of 45 mph over 2 hours, that gives me 90 miles. The output should be straightforward, just saying \"90 miles\"—no extra text necessary. I’ll make sure to include the unit to be clear and concise. So, the final response will simply be: \"90 miles.\"",
+        "saying_text": "90 miles",
+        "settings": {
+          "ai-api-type": "openai-responses",
+          "ai-engine": "gpt-5-nano",
+          "ai-max-response-tokens": 8192,
+          "ai-model-reasoning": true,
+          "inference-reasoning-effort": "low",
+          "inference-reasoning-summary": "auto",
+          "timeout": "3m0s",
+          "timeout_second": 180
+        },
+        "thinking_text": ""
+      }
+    },
+    "reasoning_blocks": [
+      {
+        "summary_json": "[{\"text\":\"**Calculating distance**\\n\\nI need to compute distance using the formula distance = speed * time. For a speed of 45 mph over 2 hours, that gives me 90 miles. The output should be straightforward, just saying \\\"90 miles\\\"—no extra text necessary. I’ll make sure to include the unit to be clear and concise. So, the final response will simply be: \\\"90 miles.\\\"\",\"type\":\"summary_text\"}]",
+        "encrypted_content_set": true
+      }
+    ],
+    "assistant_text": "90 miles",
+    "assistant_text_size": 8,
+    "sink": {
+      "event_types": {
+        "info": 3,
+        "provider-call-finished": 1,
+        "provider-call-started": 1,
+        "reasoning-delta": 75,
+        "reasoning-segment-finished": 1,
+        "reasoning-segment-started": 1,
+        "text-delta": 2,
+        "text-segment-finished": 1,
+        "text-segment-started": 1
+      },
+      "reasoning_delta_count": 75,
+      "reasoning_delta_text": "**Calculating distance**\n\nI need to compute distance using the formula distance = speed * time. For a speed of 45 mph over 2 hours, that gives me 90 miles. The output should be straightforward, just saying \"90 miles\"—no extra text necessary. I’ll make sure to include the unit to be clear and concise. So, the final response will simply be: \"90 miles.\"",
+      "reasoning_delta_sources": {
+        "summary": 75
+      },
+      "reasoning_finished_count": 1,
+      "reasoning_finished_sources": {
+        "summary": 1
+      },
+      "info_messages": {
+        "reasoning-summary": 1,
+        "reasoning-summary-ended": 1,
+        "reasoning-summary-started": 1
+      },
+      "provider_finished_class": "completed",
+      "final_metadata_extra": {
+        "reasoning_summary_text": "**Calculating distance**\n\nI need to compute distance using the formula distance = speed * time. For a speed of 45 mph over 2 hours, that gives me 90 miles. The output should be straightforward, just saying \"90 miles\"—no extra text necessary. I’ll make sure to include the unit to be clear and concise. So, the final response will simply be: \"90 miles.\"",
+        "saying_text": "90 miles",
+        "settings": {
+          "ai-api-type": "openai-responses",
+          "ai-engine": "gpt-5-nano",
+          "ai-max-response-tokens": 8192,
+          "ai-model-reasoning": true,
+          "inference-reasoning-effort": "low",
+          "inference-reasoning-summary": "auto",
+          "timeout": "3m0s",
+          "timeout_second": 180
+        },
+        "thinking_text": ""
+      },
+      "samples": [
+        {
+          "type": "provider-call-started"
+        },
+        {
+          "type": "reasoning-segment-started"
+        },
+        {
+          "type": "info"
+        },
+        {
+          "delta": "**Calculating distance**\n\nI",
+          "source": "summary",
+          "type": "reasoning-delta"
+        },
+        {
+          "delta": " need",
+          "source": "summary",
+          "type": "reasoning-delta"
+        },
+        {
+          "delta": " to",
+          "source": "summary",
+          "type": "reasoning-delta"
+        },
+        {
+          "delta": " compute",
+          "source": "summary",
+          "type": "reasoning-delta"
+        },
+        {
+          "delta": " distance",
+          "source": "summary",
+          "type": "reasoning-delta"
+        },
+        {
+          "delta": " using",
+          "source": "summary",
+          "type": "reasoning-delta"
+        },
+        {
+          "delta": " the",
+          "source": "summary",
+          "type": "reasoning-delta"
+        },
+        {
+          "delta": " formula",
+          "source": "summary",
+          "type": "reasoning-delta"
+        },
+        {
+          "delta": " distance",
+          "source": "summary",
+          "type": "reasoning-delta"
+        },
+        {
+          "delta": " =",
+          "source": "summary",
+          "type": "reasoning-delta"
+        },
+        {
+          "delta": " speed",
+          "source": "summary",
+          "type": "reasoning-delta"
+        },
+        {
+          "delta": " *",
+          "source": "summary",
+          "type": "reasoning-delta"
+        },
+        {
+          "delta": " time",
+          "source": "summary",
+          "type": "reasoning-delta"
+        },
+        {
+          "delta": ".",
+          "source": "summary",
+          "type": "reasoning-delta"
+        },
+        {
+          "delta": " For",
+          "source": "summary",
+          "type": "reasoning-delta"
+        },
+        {
+          "delta": " a",
+          "source": "summary",
+          "type": "reasoning-delta"
+        },
+        {
+          "delta": ".\"",
+          "source": "summary",
+          "type": "reasoning-delta"
+        }
+      ]
+    }
+  }
+]

@@ -103,3 +103,4 @@
 - [ ] Add OpenAI Responses support from design doc 02 after Completions and Chat Completions prototypes work.
 - [ ] Add route aliases, auth, per-user keys, and direct provider adapters only after the simple Geppetto-engine prototype works and a concrete need appears.
 - [x] Smoke-test OpenAI Chat, Anthropic Claude, and OpenAI Responses tool-call mappings with live providers.
+- [x] Smoke-test Claude and OpenAI Responses thinking/reasoning streams.

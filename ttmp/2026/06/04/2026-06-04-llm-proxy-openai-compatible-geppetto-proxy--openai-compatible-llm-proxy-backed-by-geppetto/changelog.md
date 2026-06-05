@@ -320,3 +320,13 @@ Captured official Anthropic and OpenAI reasoning/streaming docs with Defuddle un
 
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/sources — Official docs source archive
 
+
+## 2026-06-05
+
+Implemented Claude extended thinking stream parsing and validated Claude/OpenAI Responses thinking smokes through engine and proxy (Geppetto commit 6928c321)
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/geppetto/pkg/steps/ai/claude/content-block-merger.go — Claude thinking event mapping
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/artifacts/llm-proxy-thinking-smoke-summary-after-claude-thinking-fix.json — Direct engine thinking smoke evidence
+
