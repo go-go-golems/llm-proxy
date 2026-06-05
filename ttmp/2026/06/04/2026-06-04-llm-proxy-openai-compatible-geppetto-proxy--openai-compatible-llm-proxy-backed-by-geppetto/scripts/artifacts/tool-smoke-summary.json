@@ -1,0 +1,60 @@
+[
+  {
+    "label": "openai-chat",
+    "model": "groq-oss-20b",
+    "city": "Paris",
+    "curl_rc": 0,
+    "http_status": "200",
+    "object": "chat.completion",
+    "finish_reason": "tool_calls",
+    "content": "",
+    "tool_calls": [
+      {
+        "id": "fc_c0de1e2b-cc9c-4062-858a-5a7004ecc19a",
+        "type": "function",
+        "function": {
+          "name": "lookup_weather",
+          "arguments": "{\"city\":\"Paris\"}"
+        }
+      }
+    ],
+    "error": null
+  },
+  {
+    "label": "anthropic",
+    "model": "sonnet",
+    "city": "Berlin",
+    "curl_rc": 0,
+    "http_status": "500",
+    "object": null,
+    "finish_reason": null,
+    "content": null,
+    "tool_calls": null,
+    "error": {
+      "message": "run inference for profile \"sonnet\": no response",
+      "type": "api_error",
+      "code": "internal_error"
+    }
+  },
+  {
+    "label": "openai-responses",
+    "model": "gpt-5-nano",
+    "city": "Rome",
+    "curl_rc": 0,
+    "http_status": "200",
+    "object": "chat.completion",
+    "finish_reason": "tool_calls",
+    "content": "",
+    "tool_calls": [
+      {
+        "id": "call_p4U2oGPiBFxdNc2AXN5Zchq5",
+        "type": "function",
+        "function": {
+          "name": "lookup_weather",
+          "arguments": "{\"city\":\"Rome\"}"
+        }
+      }
+    ],
+    "error": null
+  }
+]

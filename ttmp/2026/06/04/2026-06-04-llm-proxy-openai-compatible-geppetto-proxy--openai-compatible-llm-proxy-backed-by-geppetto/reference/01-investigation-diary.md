@@ -62,12 +62,25 @@ RelatedFiles:
       Note: New design for /v1/chat/completions endpoint
     - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/02-research-logbook.md
       Note: Research resource usefulness/outdatedness logbook created for the ticket
+    - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/01-generate-backend-smoke-profiles.py
+      Note: Recreates temporary backend smoke profiles from local Pinocchio config without committing secrets
+    - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/02-backend-tool-smoke.py
+      Note: Cross-backend live tool-call smoke runner
+    - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/03-provider-tool-smoke.py
+      Note: Earlier provider smoke runner used during live testing
+    - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/04-inspect-claude-request.go
+      Note: Claude request inspection helper for Anthropic no-response debugging
+    - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/artifacts/backend-tool-smoke-summary.json
+      Note: Cross-backend smoke result summary
+    - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/artifacts/llm-proxy-tool-call-stream-after-fix.sse
+      Note: Streaming tool-call transcript after duplicate suppression fix
 ExternalSources: []
 Summary: Chronological diary for creating the OpenAI-compatible llm-proxy docmgr ticket, evidence-backed design, and delivery bundle.
 LastUpdated: 2026-06-04T19:45:00-04:00
 WhatFor: Use this to understand how the design doc was produced, what evidence was gathered, and what remains to validate during implementation.
 WhenToUse: Read before continuing the llm-proxy implementation or reviewing the design decisions.
 ---
+
 
 
 
@@ -1762,3 +1775,72 @@ The smoke test exposed a real integration bug. The proxy mapped OpenAI `tools` i
   - `arg_frame_count: 1`
   - argument chunk: `{"city":"Berlin"}`
   - final finish reason: `tool_calls`
+
+## Step 21: Archive smoke-test scripts and artifacts in the ticket
+
+This step moved the ad-hoc smoke-test scripts and non-secret request/response artifacts from `/tmp` into the ticket `scripts/` directory. The goal is retraceability: a future reviewer should be able to inspect the exact payloads, response bodies, SSE transcripts, and helper scripts used during live tool-call and backend smoke testing.
+
+I deliberately did not commit the generated `/tmp/llm-proxy-backend-smoke-profiles.yaml` file because it contains local API keys. Instead, I committed a generator script that reconstructs the temporary profile file from the operator's local Pinocchio config, plus a redacted profile-shape artifact.
+
+### Prompt Context
+
+**User prompt (verbatim):** "store all your scripts in the scripts/ folder of the ticket, for future reference."
+
+**User prompt (verbatim):** "including json files and all so that we can retrace your work later on ."
+
+**Assistant interpretation:** Persist not only reusable scripts but also the JSON request files, response captures, and SSE transcripts used for live smoke testing.
+
+**Inferred user intent:** Make the investigation reproducible and auditable after temporary `/tmp` files disappear.
+
+### What I did
+
+- Created/updated the ticket `scripts/` directory.
+- Added smoke helper scripts:
+  - `01-generate-backend-smoke-profiles.py`
+  - `02-backend-tool-smoke.py`
+  - `03-provider-tool-smoke.py`
+  - `04-inspect-claude-request.go`
+- Added `scripts/artifacts/` with request JSON, raw responses, SSE transcripts, summaries, and a redacted backend profile shape.
+- Added `scripts/00-smoke-test-artifacts.md` explaining how to reproduce the smoke tests and which files matter.
+- Scanned the committed scripts directory for obvious API-key patterns and did not find any.
+
+### Why
+
+- The smoke testing work used several temporary files under `/tmp`; those are not durable.
+- Ticket scripts are the right place for reproducibility artifacts, especially when a later engineer needs to understand why OpenAI Chat and OpenAI Responses passed while Anthropic returned `no response` in the proxy path.
+
+### What worked
+
+- The archived artifacts include the successful OpenAI Chat and OpenAI Responses tool-call results, the Anthropic failure artifacts, and the before/after streaming tool-call transcripts.
+- The generated profile YAML containing secrets was excluded from version control.
+
+### What didn't work
+
+- N/A.
+
+### What I learned
+
+- The ticket now needs to be treated as the canonical place for future smoke-test scripts, not `/tmp`.
+
+### What was tricky to build
+
+- The main risk was accidentally committing local provider credentials. I avoided copying the generated smoke profile YAML and committed only a redacted version plus a script that regenerates it locally.
+
+### What warrants a second pair of eyes
+
+- Review `scripts/artifacts/` before pushing externally to confirm no response bodies contain sensitive data.
+
+### What should be done in the future
+
+- Store new backend smoke transcripts in `scripts/artifacts/` immediately after running them.
+- Prefer adding small reproducible scripts over one-off shell commands for future provider tests.
+
+### Code review instructions
+
+- Start with `scripts/00-smoke-test-artifacts.md`.
+- Review `scripts/01-generate-backend-smoke-profiles.py` to confirm credentials are read locally and not committed.
+- Inspect `scripts/artifacts/backend-tool-smoke-summary.json` for the current cross-backend smoke status.
+
+### Technical details
+
+- Scripts directory: `/home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts`

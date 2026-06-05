@@ -1,0 +1,10 @@
+data: {"id":"chatcmpl_proxy_1780656310388016891","object":"chat.completion.chunk","created":1780656310,"model":"groq-oss-20b","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl_proxy_1780656310388016891","object":"chat.completion.chunk","created":1780656310,"model":"groq-oss-20b","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"fc_17ccb422-b9e6-425d-888d-7c6342ed5c51","type":"function","function":{"name":"lookup_weather"}}]},"finish_reason":null}]}
+
+data: {"id":"chatcmpl_proxy_1780656310388016891","object":"chat.completion.chunk","created":1780656310,"model":"groq-oss-20b","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"city\":\"Berlin\"}"}}]},"finish_reason":null}]}
+
+data: {"id":"chatcmpl_proxy_1780656310388016891","object":"chat.completion.chunk","created":1780656310,"model":"groq-oss-20b","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}
+
+data: [DONE]
+

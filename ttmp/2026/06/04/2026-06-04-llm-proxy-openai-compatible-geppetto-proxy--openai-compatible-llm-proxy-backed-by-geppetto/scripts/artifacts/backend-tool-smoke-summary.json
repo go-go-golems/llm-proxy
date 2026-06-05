@@ -1,0 +1,60 @@
+[
+  {
+    "label": "openai-chat",
+    "model": "openai-chat-smoke",
+    "city": "Paris",
+    "curl_rc": 0,
+    "http_status": "200",
+    "object": "chat.completion",
+    "finish_reason": "tool_calls",
+    "content": "",
+    "tool_calls": [
+      {
+        "id": "fc_2955b50d-fd64-49e2-b962-7e817aa40b4d",
+        "type": "function",
+        "function": {
+          "name": "lookup_weather",
+          "arguments": "{\"city\":\"Paris\"}"
+        }
+      }
+    ],
+    "error": null
+  },
+  {
+    "label": "anthropic",
+    "model": "anthropic-haiku-smoke",
+    "city": "Berlin",
+    "curl_rc": 0,
+    "http_status": "500",
+    "object": null,
+    "finish_reason": null,
+    "content": null,
+    "tool_calls": null,
+    "error": {
+      "message": "run inference for profile \"anthropic-haiku-smoke\": no response",
+      "type": "api_error",
+      "code": "internal_error"
+    }
+  },
+  {
+    "label": "openai-responses",
+    "model": "openai-responses-smoke",
+    "city": "Rome",
+    "curl_rc": 0,
+    "http_status": "200",
+    "object": "chat.completion",
+    "finish_reason": "tool_calls",
+    "content": "",
+    "tool_calls": [
+      {
+        "id": "call_lABmec2cZo3Zv6TYST4zLDcL",
+        "type": "function",
+        "function": {
+          "name": "lookup_weather",
+          "arguments": "{\"city\":\"Rome\"}"
+        }
+      }
+    ],
+    "error": null
+  }
+]

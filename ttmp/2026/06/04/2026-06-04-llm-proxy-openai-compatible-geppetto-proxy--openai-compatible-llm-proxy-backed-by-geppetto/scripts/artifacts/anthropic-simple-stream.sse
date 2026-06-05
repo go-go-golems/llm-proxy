@@ -1,0 +1,6 @@
+data: {"id":"chatcmpl_proxy_1780657088141223896","object":"chat.completion.chunk","created":1780657088,"model":"anthropic-haiku-smoke","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
+
+data: {"error":{"message":"run inference for profile \"anthropic-haiku-smoke\": no response","type":"api_error","code":"stream_error"}}
+
+data: [DONE]
+

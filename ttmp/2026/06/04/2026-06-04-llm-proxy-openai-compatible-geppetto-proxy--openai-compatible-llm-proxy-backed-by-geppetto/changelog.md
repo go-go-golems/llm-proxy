@@ -273,3 +273,22 @@ Live tool-call smoke tested Chat Completions and fixed request tool advertisemen
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/runtime/chat_service.go — Request tools now become a Geppetto context registry
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/01-investigation-diary.md — Live tool-call smoke diary
 
+
+## 2026-06-05
+
+Archived live smoke-test scripts and non-secret JSON/SSE artifacts under ticket scripts/ for retraceability
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts — Smoke scripts and artifacts directory
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/00-smoke-test-artifacts.md — Artifact index and reproduction notes
+
+
+## 2026-06-05
+
+Renamed smoke artifact index to numbered docmgr-compatible markdown
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/00-smoke-test-artifacts.md — Artifact index and reproduction notes
+
