@@ -651,3 +651,91 @@ The purpose is to make implementation reviewable in small increments. Each phase
 
 - Current design reference: `design-doc/03-simple-geppetto-engine-openai-completions-proxy-prototype.md`
 - Current task list: `tasks.md`
+
+## Step 8: Implement Phase 1 server skeleton and Completions wire types
+
+This step implemented the first executable slice of the `/v1/completions` prototype. The server now has a real `cmd/llm-proxy-server` entrypoint, a `GET /healthz` route, a `POST /v1/completions` route, OpenAI-style JSON error responses, request body limiting, and minimal OpenAI Completions request/response/chunk structs.
+
+The Completions handler still uses a placeholder completion service. That is intentional for Phase 1: it validates the HTTP boundary and wire types before profile resolution and Geppetto inference are wired in later phases.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 7)
+
+**Assistant interpretation:** Implement the first phase of the `/v1/completions` prototype after expanding the ticket into detailed phases.
+
+**Inferred user intent:** Make incremental progress with a testable server skeleton and commit it before moving to Geppetto integration.
+
+### What I did
+
+- Added `cmd/llm-proxy-server/main.go` with `--listen` and `--profiles` flags.
+- Added `pkg/openaicompletions/types.go` with:
+  - `CompletionRequest`
+  - `CompletionResponse`
+  - `CompletionChoice`
+  - `Usage`
+  - streaming chunk structs
+  - request decoder and prompt-string validation
+- Added `pkg/openaicompletions/types_test.go` for string prompt decoding, missing fields, and prompt-array rejection.
+- Added `pkg/server/server.go` with:
+  - `GET /healthz`
+  - `POST /v1/completions`
+  - `CompletionService` seam
+  - placeholder `StaticCompletionService`
+- Added `pkg/server/errors.go` for OpenAI-style errors.
+- Added `pkg/server/server_test.go` for health, placeholder completion response, and bad request handling.
+- Ran:
+  - `cd llm-proxy && go test ./... -count=1`
+
+### Why
+
+- Phase 1 should establish the HTTP and wire-shape boundary before adding Geppetto profile and engine complexity.
+- Keeping the completion service behind an interface makes Phase 3 replacement straightforward.
+
+### What worked
+
+- `go test ./... -count=1` passed for all current packages.
+- `/v1/completions` now validates required `model` and string `prompt`.
+- Prompt arrays are explicitly rejected with `unsupported_prompt_shape`.
+
+### What didn't work
+
+- N/A. Phase 1 tests passed on the first run.
+
+### What I learned
+
+- The template `cmd/XXX` command still compiles alongside the new `cmd/llm-proxy-server`; removing or renaming it can be a later cleanup.
+- The `--profiles` flag is accepted but intentionally unused until Phase 2.
+
+### What was tricky to build
+
+- The main trick was choosing a Phase 1 behavior for `/v1/completions` before Geppetto exists. I added a placeholder service behind `CompletionService` so the HTTP route can be tested now and swapped for Geppetto inference later.
+
+### What warrants a second pair of eyes
+
+- Confirm whether `json.Decoder.DisallowUnknownFields` is too strict for prototype client compatibility. If clients send harmless OpenAI fields we do not support yet, we may want to preserve/ignore unknown fields instead.
+- Confirm whether prompt arrays should remain rejected in Phase 1.
+
+### What should be done in the future
+
+- Phase 2 should replace the unused `--profiles` flag with real Geppetto profile loading and add `/v1/models`.
+- Phase 3 should replace the placeholder completion service with Geppetto `RunInferenceWithResult`.
+
+### Code review instructions
+
+- Start in `pkg/openaicompletions/types.go` for the supported wire subset.
+- Review `pkg/server/server.go` for handler flow and current placeholder service.
+- Validate with `cd llm-proxy && go test ./... -count=1`.
+
+### Technical details
+
+- New files:
+  - `cmd/llm-proxy-server/main.go`
+  - `pkg/openaicompletions/types.go`
+  - `pkg/openaicompletions/types_test.go`
+  - `pkg/server/errors.go`
+  - `pkg/server/server.go`
+  - `pkg/server/server_test.go`
+- Test command output:
+  - `ok   github.com/go-go-golems/llm-proxy/pkg/openaicompletions`
+  - `ok   github.com/go-go-golems/llm-proxy/pkg/server`

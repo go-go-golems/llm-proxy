@@ -18,11 +18,11 @@
 
 ### Phase 1: Server skeleton and OpenAI Completions wire types
 
-- [ ] Add `cmd/llm-proxy-server` with `--listen` and `--profiles` flags.
-- [ ] Add `pkg/server` with `GET /healthz`, request body limiting, JSON helpers, and OpenAI-style error responses.
-- [ ] Add `pkg/openaicompletions` request/response/chunk structs for the supported `/v1/completions` subset.
-- [ ] Implement request decoding for required `model` and string `prompt`, with explicit rejection of prompt arrays for the prototype.
-- [ ] Add unit tests for completion request decoding and validation.
+- [x] Add `cmd/llm-proxy-server` with `--listen` and `--profiles` flags.
+- [x] Add `pkg/server` with `GET /healthz`, request body limiting, JSON helpers, and OpenAI-style error responses.
+- [x] Add `pkg/openaicompletions` request/response/chunk structs for the supported `/v1/completions` subset.
+- [x] Implement request decoding for required `model` and string `prompt`, with explicit rejection of prompt arrays for the prototype.
+- [x] Add unit tests for completion request decoding and validation.
 
 ### Phase 2: Geppetto profile resolution and engine construction
 

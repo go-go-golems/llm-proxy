@@ -1,6 +1,8 @@
-module github.com/go-go-golems/XXX
+module github.com/go-go-golems/llm-proxy
 
 go 1.25.0
+
+toolchain go1.26.4
 
 require github.com/go-go-golems/logcopter v0.1.0
 
