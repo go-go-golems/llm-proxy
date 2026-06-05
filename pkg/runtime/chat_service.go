@@ -2,14 +2,17 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/go-go-golems/geppetto/pkg/events"
 	geppettoengine "github.com/go-go-golems/geppetto/pkg/inference/engine"
+	geppettotools "github.com/go-go-golems/geppetto/pkg/inference/tools"
 	"github.com/go-go-golems/geppetto/pkg/turns"
 	"github.com/go-go-golems/llm-proxy/pkg/openaichat"
 	"github.com/go-go-golems/llm-proxy/pkg/profiles"
+	"github.com/invopop/jsonschema"
 )
 
 type GeppettoChatCompletionService struct {
@@ -39,7 +42,11 @@ func (s *GeppettoChatCompletionService) Complete(ctx context.Context, req *opena
 		return nil, err
 	}
 	preBlockCount := len(turn.Blocks)
-	out, result, err := geppettoengine.RunInferenceWithResult(ctx, eng, turn)
+	runCtx, err := contextWithRequestTools(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	out, result, err := geppettoengine.RunInferenceWithResult(runCtx, eng, turn)
 	if err != nil {
 		return nil, fmt.Errorf("run inference for profile %q: %w", req.Model, err)
 	}
@@ -67,11 +74,15 @@ func (s *GeppettoChatCompletionService) Stream(ctx context.Context, req *openaic
 		return nil, err
 	}
 	preBlockCount := len(turn.Blocks)
+	toolCtx, err := contextWithRequestTools(ctx, req)
+	if err != nil {
+		return nil, err
+	}
 	id := openaichat.NewChatCompletionID()
 	created := time.Now().Unix()
 	frames := make(chan openaichat.ChatStreamFrame, 64)
 	sink := &openaichat.ChatEventSink{ID: id, Model: req.Model, Created: created, Out: frames}
-	runCtx := events.WithEventSinks(ctx, sink)
+	runCtx := events.WithEventSinks(toolCtx, sink)
 	go func() {
 		defer close(frames)
 		frames <- openaichat.RoleFrame(id, req.Model, created)
@@ -84,6 +95,45 @@ func (s *GeppettoChatCompletionService) Stream(ctx context.Context, req *openaic
 		frames <- openaichat.FinalFrame(id, req.Model, created, finish)
 	}()
 	return frames, nil
+}
+
+func contextWithRequestTools(ctx context.Context, req *openaichat.ChatCompletionRequest) (context.Context, error) {
+	if req == nil || len(req.Tools) == 0 {
+		return ctx, nil
+	}
+	registry := geppettotools.NewInMemoryToolRegistry()
+	for i, tool := range req.Tools {
+		if err := tool.Validate(i); err != nil {
+			return nil, err
+		}
+		schema, err := jsonSchemaFromMap(tool.Function.Parameters)
+		if err != nil {
+			return nil, openaichat.FieldError{Field: fmt.Sprintf("tools[%d].function.parameters", i), Message: err.Error(), Code: "invalid_tool_parameters"}
+		}
+		if err := registry.RegisterTool(tool.Function.Name, geppettotools.ToolDefinition{
+			Name:        tool.Function.Name,
+			Description: tool.Function.Description,
+			Parameters:  schema,
+		}); err != nil {
+			return nil, fmt.Errorf("register request tool %q: %w", tool.Function.Name, err)
+		}
+	}
+	return geppettotools.WithRegistry(ctx, registry), nil
+}
+
+func jsonSchemaFromMap(parameters map[string]any) (*jsonschema.Schema, error) {
+	if parameters == nil {
+		return nil, nil
+	}
+	b, err := json.Marshal(parameters)
+	if err != nil {
+		return nil, fmt.Errorf("marshal JSON schema: %w", err)
+	}
+	var schema jsonschema.Schema
+	if err := json.Unmarshal(b, &schema); err != nil {
+		return nil, fmt.Errorf("decode JSON schema: %w", err)
+	}
+	return &schema, nil
 }
 
 func chatFinishReason(result *geppettoengine.InferenceResult, hasToolCalls bool) string {

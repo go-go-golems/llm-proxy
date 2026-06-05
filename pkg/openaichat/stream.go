@@ -39,8 +39,9 @@ type ChatEventSink struct {
 	Created int64
 	Out     chan<- ChatStreamFrame
 
-	mu          sync.Mutex
-	toolIndexes map[string]int
+	mu                    sync.Mutex
+	toolIndexes           map[string]int
+	toolArgumentDeltaSeen map[string]bool
 }
 
 func (s *ChatEventSink) PublishEvent(ev events.Event) error {
@@ -55,11 +56,12 @@ func (s *ChatEventSink) PublishEvent(ev events.Event) error {
 	case *events.EventToolCallArgumentsDelta:
 		idx := s.toolIndex(e.ToolCallID)
 		if e.Delta != "" {
+			s.markToolArgumentDeltaSeen(e.ToolCallID)
 			s.Out <- ToolCallArgumentsFrame(s.ID, s.Model, s.Created, idx, e.Delta)
 		}
 	case *events.EventToolCallRequested:
 		idx := s.toolIndex(e.ToolCallID)
-		if e.Input != "" {
+		if e.Input != "" && !s.hasToolArgumentDeltaSeen(e.ToolCallID) {
 			s.Out <- ToolCallArgumentsFrame(s.ID, s.Model, s.Created, idx, e.Input)
 		}
 	}
@@ -78,6 +80,21 @@ func (s *ChatEventSink) toolIndex(toolCallID string) int {
 	idx := len(s.toolIndexes)
 	s.toolIndexes[toolCallID] = idx
 	return idx
+}
+
+func (s *ChatEventSink) markToolArgumentDeltaSeen(toolCallID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.toolArgumentDeltaSeen == nil {
+		s.toolArgumentDeltaSeen = map[string]bool{}
+	}
+	s.toolArgumentDeltaSeen[toolCallID] = true
+}
+
+func (s *ChatEventSink) hasToolArgumentDeltaSeen(toolCallID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.toolArgumentDeltaSeen[toolCallID]
 }
 
 func (s *ChatEventSink) Close() error { return nil }
