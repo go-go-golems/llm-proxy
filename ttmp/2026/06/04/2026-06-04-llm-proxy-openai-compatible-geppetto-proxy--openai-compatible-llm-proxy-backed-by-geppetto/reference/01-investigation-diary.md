@@ -1375,3 +1375,70 @@ The ticket now has detailed phases for chat wire types, chat runtime service, HT
 ### Technical details
 
 - New design doc: `/home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/design-doc/04-simple-geppetto-engine-openai-chat-completions-proxy-prototype.md`
+
+## Step 17: Implement Phase 6 chat wire types and turn mapping
+
+This step added the `pkg/openaichat` package for the text-only `/v1/chat/completions` subset. The package decodes chat requests, validates required `model` and `messages`, accepts string content for `system`, `developer`, `user`, and `assistant` messages, maps messages into Geppetto turn blocks, and maps generated assistant blocks into a `chat.completion` response.
+
+The endpoint is not wired into HTTP yet. This phase deliberately isolates wire and mapper behavior so the runtime service and server handler can be added in small follow-up commits.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 16)
+
+**Assistant interpretation:** Begin implementing `/v1/chat/completions` by adding request/response structs and mapping logic.
+
+**Inferred user intent:** Keep the same phase discipline used for `/v1/completions`, with a reviewable first slice before runtime and HTTP wiring.
+
+### What I did
+
+- Added `pkg/openaichat/types.go` with text-only Chat Completions request, response, and stream chunk structs.
+- Added `DecodeChatCompletionRequest`, message role validation, and string-content validation.
+- Added `pkg/openaichat/mapper.go` for message-to-turn and turn-to-chat-response mapping.
+- Added tests for valid decoding, missing messages, unsupported content arrays, unsupported roles, message-to-turn mapping, and generated assistant text mapping.
+- Ran `cd llm-proxy && go test ./... -count=1`.
+
+### Why
+
+- Chat Completions has a different wire shape from legacy Completions, so it should have its own package instead of expanding `pkg/openaicompletions`.
+- Text-only mapping is enough for the first endpoint implementation.
+
+### What worked
+
+- All tests passed.
+- The mapper preserves message order and maps `developer` to a Geppetto system block for the prototype.
+- Unsupported content arrays and tool roles are rejected explicitly.
+
+### What didn't work
+
+- N/A.
+
+### What I learned
+
+- The existing Completions mapper pattern transfers cleanly to Chat Completions once message-role mapping is explicit.
+
+### What was tricky to build
+
+- The content field is `json.RawMessage` so the decoder can distinguish string content from arrays. This lets the prototype reject multimodal content with a clear `unsupported_content_shape` error.
+
+### What warrants a second pair of eyes
+
+- Confirm that mapping `developer` to `system` is acceptable for the first prototype.
+- Confirm whether `DisallowUnknownFields` should remain strict.
+
+### What should be done in the future
+
+- Phase 7 should add the Geppetto-backed chat runtime service.
+
+### Code review instructions
+
+- Review `pkg/openaichat/types.go` and `pkg/openaichat/mapper.go`.
+- Validate with `cd llm-proxy && go test ./... -count=1`.
+
+### Technical details
+
+- New files:
+  - `pkg/openaichat/types.go`
+  - `pkg/openaichat/types_test.go`
+  - `pkg/openaichat/mapper.go`
+  - `pkg/openaichat/mapper_test.go`

@@ -59,12 +59,12 @@
 
 ### Phase 6: Chat wire package and text-only turn mapping
 
-- [ ] Add `pkg/openaichat` request/response/chunk structs for `/v1/chat/completions`.
-- [ ] Decode and validate required `model` and non-empty `messages`.
-- [ ] Support text-only string content for `system`, `developer`, `user`, and `assistant` roles.
-- [ ] Map chat messages to Geppetto `turns.Turn` blocks in order.
-- [ ] Map generated assistant blocks to a `chat.completion` response.
-- [ ] Add mapper/unit tests for valid messages, missing messages, unsupported roles, unsupported content, and generated assistant text.
+- [x] Add `pkg/openaichat` request/response/chunk structs for `/v1/chat/completions`.
+- [x] Decode and validate required `model` and non-empty `messages`.
+- [x] Support text-only string content for `system`, `developer`, `user`, and `assistant` roles.
+- [x] Map chat messages to Geppetto `turns.Turn` blocks in order.
+- [x] Map generated assistant blocks to a `chat.completion` response.
+- [x] Add mapper/unit tests for valid messages, missing messages, unsupported roles, unsupported content, and generated assistant text.
 
 ### Phase 7: Chat runtime service
 
