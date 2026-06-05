@@ -50,7 +50,6 @@ type ChatToolCallFunction struct {
 
 func DecodeChatCompletionRequest(r io.Reader) (*ChatCompletionRequest, error) {
 	dec := json.NewDecoder(r)
-	dec.DisallowUnknownFields()
 	var req ChatCompletionRequest
 	if err := dec.Decode(&req); err != nil {
 		return nil, fmt.Errorf("decode chat completion request: %w", err)

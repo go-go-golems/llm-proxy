@@ -19,6 +19,16 @@ func TestDecodeChatCompletionRequest(t *testing.T) {
 	}
 }
 
+func TestDecodeChatCompletionAllowsUnknownCompatibilityFields(t *testing.T) {
+	req, err := DecodeChatCompletionRequest(strings.NewReader(`{"model":"sonnet","messages":[{"role":"user","content":"hello"}],"n":1,"presence_penalty":0,"frequency_penalty":0}`))
+	if err != nil {
+		t.Fatalf("DecodeChatCompletionRequest error: %v", err)
+	}
+	if req.Model != "sonnet" {
+		t.Fatalf("model = %q", req.Model)
+	}
+}
+
 func TestDecodeChatCompletionRejectsMissingMessages(t *testing.T) {
 	_, err := DecodeChatCompletionRequest(strings.NewReader(`{"model":"sonnet"}`))
 	if err == nil {

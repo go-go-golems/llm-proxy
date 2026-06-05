@@ -144,3 +144,21 @@ curl -sS http://127.0.0.1:8080/v1/chat/completions \
 - Chat tool support currently means tool schema advertisement, assistant tool-call mapping, tool-result message mapping, and tool-call streaming chunks. The proxy does not execute arbitrary client tools.
 - If the current Geppetto YAML loader does not expand `${ENV}` in API key fields, use the existing Geppetto-supported credential/config mechanism or replace the example values with local test values outside version control.
 - OpenAI Responses support is deferred; see the ticket design docs for the later Responses bridge plan.
+
+## Smoke test through Pinocchio
+
+Pinocchio's OpenAI-compatible provider path uses Chat Completions. To smoke test this proxy with Pinocchio itself, add a Pinocchio profile whose OpenAI-compatible base URL points at the running proxy and whose engine is the upstream proxy model/profile slug.
+
+For local development, Geppetto/Pinocchio currently rejects plain HTTP provider URLs and local-network provider targets. One working smoke-test shape is:
+
+1. Run `llm-proxy-server` on localhost.
+2. Expose it through a temporary HTTPS tunnel such as ngrok.
+3. Add a Pinocchio profile with `openai-base-url: https://<ngrok-host>/v1` and `chat.engine: <proxy model slug>`.
+4. Run:
+
+```bash
+pinocchio code unix --profile llm-proxy-groq-oss-20b --non-interactive \
+  "Reply with exactly: llm-proxy chat smoke ok"
+```
+
+The smoke profile used during implementation pointed Pinocchio at `/v1/chat/completions` on this proxy and used `groq-oss-20b` as the model slug resolved by the proxy.

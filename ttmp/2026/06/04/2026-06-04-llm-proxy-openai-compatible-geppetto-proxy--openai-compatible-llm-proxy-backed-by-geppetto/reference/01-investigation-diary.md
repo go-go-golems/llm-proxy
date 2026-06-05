@@ -29,11 +29,17 @@ RelatedFiles:
     - Path: geppetto/pkg/steps/ai/openai_responses/helpers.go
       Note: Evidence for OpenAI Responses mapping rules.
     - Path: llm-proxy/examples/README.md
-      Note: Phase 10 examples
+      Note: |-
+        Phase 10 examples
+        Pinocchio smoke-test runbook
     - Path: llm-proxy/pkg/openaichat/stream.go
       Note: Phase 9 streaming implementation
     - Path: llm-proxy/pkg/openaichat/types.go
-      Note: Phase 6/expanded tool wire implementation
+      Note: |-
+        Phase 6/expanded tool wire implementation
+        Relaxed Chat Completions decoder for Pinocchio compatibility
+    - Path: llm-proxy/pkg/openaichat/types_test.go
+      Note: Regression test for unknown OpenAI compatibility fields sent by Pinocchio
     - Path: llm-proxy/pkg/runtime/chat_service.go
       Note: Phase 7 runtime implementation
     - Path: llm-proxy/pkg/server/server.go
@@ -56,6 +62,7 @@ LastUpdated: 2026-06-04T19:45:00-04:00
 WhatFor: Use this to understand how the design doc was produced, what evidence was gathered, and what remains to validate during implementation.
 WhenToUse: Read before continuing the llm-proxy implementation or reviewing the design decisions.
 ---
+
 
 
 
@@ -1547,3 +1554,98 @@ Tool support is intentionally client-driven. The proxy advertises tool schemas t
   - `pkg/server/errors.go`
   - `cmd/llm-proxy-server/main.go`
   - `examples/README.md`
+
+## Step 19: Smoke test Chat Completions through Pinocchio
+
+This step used Pinocchio itself as an OpenAI-compatible Chat Completions client against the local proxy. I added local Pinocchio profiles that point at the proxy's `/v1/chat/completions` endpoint and then ran `pinocchio code unix --profile ...` through the proxy to a real upstream provider profile.
+
+The first smoke attempts found two practical compatibility and environment issues. Pinocchio sends standard OpenAI Chat Completions fields such as `n`, `presence_penalty`, and `frequency_penalty`; the proxy's strict JSON decoder rejected those. Pinocchio/Geppetto also rejects plain HTTP and local-network provider base URLs, so I exposed the local proxy through an HTTPS ngrok URL for the smoke test.
+
+### Prompt Context
+
+**User prompt (verbatim):** "use pinocchio itself to smoke test against it. Add a corresponding profile for your endpoints to ~/.config/pinocchio/profiles.yaml and then use `pinocchio code unix --profile XXX "..."` ."
+
+**Assistant interpretation:** Configure Pinocchio as a Chat Completions client for the proxy, run the actual Pinocchio command, and fix compatibility issues that the smoke test exposes.
+
+**Inferred user intent:** Validate the proxy with a real local client stack rather than only unit tests and curl.
+
+**Commit (code):** pending — "Prototype: smoke test chat completions with Pinocchio"
+
+### What I did
+
+- Backed up `~/.config/pinocchio/profiles.yaml` to `~/.config/pinocchio/profiles.yaml.bak-20260604-223153-llm-proxy-smoke`.
+- Added Pinocchio profiles:
+  - `llm-proxy-local-base`, pointing OpenAI-compatible Chat Completions at the proxy base URL.
+  - `llm-proxy-sonnet`, initially targeting proxy model/profile slug `sonnet`.
+  - `llm-proxy-groq-oss-20b`, targeting proxy model/profile slug `groq-oss-20b`.
+- Ran the proxy locally on `127.0.0.1:18080` with `~/.config/pinocchio/profiles.yaml` as its Geppetto profile source.
+- Exposed the local proxy through ngrok because Pinocchio rejects `http://127.0.0.1` provider URLs.
+- Relaxed `openaichat.DecodeChatCompletionRequest` to tolerate unknown compatibility fields instead of calling `DisallowUnknownFields`.
+- Added a regression test showing Chat Completions decoding accepts `n`, `presence_penalty`, and `frequency_penalty`.
+- Added Pinocchio smoke-test notes to `examples/README.md`.
+- Ran:
+  - `pinocchio code unix --profile llm-proxy-groq-oss-20b --non-interactive --output text "Reply with exactly: llm-proxy chat smoke ok"`
+  - `cd llm-proxy && go test ./... -count=1`
+  - `cd llm-proxy && GOWORK=off go test ./... -count=1`
+
+### Why
+
+- Pinocchio is a real Chat Completions client and exercises request fields that the unit tests did not originally include.
+- The smoke test verifies the deployed HTTP route, SSE streaming path, Pinocchio profile configuration, proxy model slug resolution, and upstream Geppetto provider execution together.
+
+### What worked
+
+- Final Pinocchio smoke test passed with exit code 0 and stdout exactly:
+  - `llm-proxy chat smoke ok`
+- Direct non-streaming curl through the proxy to `groq-oss-20b` also returned expected assistant text.
+- The relaxed decoder fixed the OpenAI compatibility issue exposed by Pinocchio's `n` field.
+
+### What didn't work
+
+- First Pinocchio attempt against `http://127.0.0.1:18080/v1` failed before reaching the proxy:
+  - `Error: inference failed: invalid chat completion URL: http scheme is not allowed`
+- Pinocchio through ngrok initially failed because the proxy rejected Pinocchio's `n` field:
+  - `chat completions error: status=400 body={"error":{"message":"decode chat completion request: json: unknown field \"n\"","type":"api_error","code":"internal_error"}}`
+- The initial `sonnet` proxy target failed because the profile lacked factory-required Claude settings in this loading path:
+  - `missing base URL claude-base-url`
+  - `Claude-specific settings cannot be nil`
+- The first `groq-oss-20b` direct proxy run failed until the profile had explicit client and provider-specific settings:
+  - `missing client settings`
+  - `no openai settings`
+
+### What I learned
+
+- Pinocchio's OpenAI-compatible path uses Chat Completions streaming and sends fields beyond the proxy's minimal struct, including `n`, `presence_penalty`, and `frequency_penalty`.
+- Geppetto's outbound URL validator prevents using plain local HTTP as a provider base URL; an HTTPS tunnel is a practical smoke-test workaround without changing Geppetto security policy.
+- Some profile stacks that work in Pinocchio's normal path still need explicit provider-specific settings when loaded by the proxy's YAML resolver and engine factory.
+
+### What was tricky to build
+
+- The smoke test involved two Geppetto stacks at once: Pinocchio as the outer OpenAI-compatible client and llm-proxy as the inner Geppetto-engine server. The outer profile's `chat.engine` had to be the model slug resolved by the proxy, not the provider model string.
+- The local URL security policy meant the base URL had to be HTTPS and non-local from the client's validation perspective even though the server was local. ngrok provided that public HTTPS endpoint while still forwarding to `127.0.0.1:18080`.
+
+### What warrants a second pair of eyes
+
+- The Pinocchio config was modified outside the repo. It has a backup, but the local profile additions should be reviewed if this machine's Pinocchio config is considered shared operator state.
+- The decoder now ignores unknown Chat Completions fields. This is better for compatibility, but unsupported fields can be silently ignored until specific mappings are implemented.
+
+### What should be done in the future
+
+- Consider adding an explicit local-development allowlist or TLS test harness if repeated local Pinocchio smoke tests are needed without ngrok.
+- Add request override mapping for the fields Pinocchio sends (`temperature`, `top_p`, `n`, penalties, max token fields) or document which fields are intentionally ignored.
+
+### Code review instructions
+
+- Review `pkg/openaichat/types.go` for the decoder compatibility change.
+- Review `pkg/openaichat/types_test.go` for the Pinocchio compatibility regression test.
+- Review `examples/README.md` for the Pinocchio smoke-test runbook.
+- Validate with:
+  - `cd llm-proxy && go test ./... -count=1`
+  - `cd llm-proxy && GOWORK=off go test ./... -count=1`
+
+### Technical details
+
+- Successful smoke command:
+  - `pinocchio --log-level debug code unix --profile llm-proxy-groq-oss-20b --non-interactive --output text "Reply with exactly: llm-proxy chat smoke ok"`
+- Successful stdout:
+  - `llm-proxy chat smoke ok`

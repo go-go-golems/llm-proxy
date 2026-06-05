@@ -242,3 +242,14 @@ Annotated Chat Completions diary with implementation commit 8583723
 
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/01-investigation-diary.md — Commit hash for Chat Completions implementation diary
 
+
+## 2026-06-04
+
+Smoke tested /v1/chat/completions through Pinocchio and relaxed chat decoding for compatibility fields
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/examples/README.md — Pinocchio smoke-test instructions
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/openaichat/types.go — Unknown Chat Completions fields are tolerated
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/01-investigation-diary.md — Pinocchio smoke-test diary
+
