@@ -12,82 +12,93 @@ DocType: reference
 Intent: long-term
 Owners: []
 RelatedFiles:
-    - Path: geppetto/pkg/engineprofiles/sqlite_store.go
+    - Path: ../../../../../../../geppetto/pkg/engineprofiles/sqlite_store.go
       Note: |-
         Evidence for DB-ready profile storage.
         DB-ready profile store evidence captured in diary Step 2
-    - Path: geppetto/pkg/engineprofiles/store.go
+    - Path: ../../../../../../../geppetto/pkg/engineprofiles/store.go
       Note: Evidence for swappable profile persistence.
-    - Path: geppetto/pkg/engineprofiles/types.go
+    - Path: ../../../../../../../geppetto/pkg/engineprofiles/types.go
       Note: |-
         Evidence for profile data model used by the proxy design.
         Evidence captured in diary Step 2
-    - Path: geppetto/pkg/steps/ai/claude/api/messages.go
+    - Path: ../../../../../../../geppetto/pkg/steps/ai/claude/api/messages.go
       Note: Evidence for Anthropic Messages request/client shape.
-    - Path: geppetto/pkg/steps/ai/claude/engine_claude.go
+    - Path: ../../../../../../../geppetto/pkg/steps/ai/claude/engine_claude.go
       Note: Forces Claude RunInference requests into streaming mode (commit fb2b9ed)
-    - Path: geppetto/pkg/steps/ai/claude/helpers_test.go
+    - Path: ../../../../../../../geppetto/pkg/steps/ai/claude/helpers_test.go
       Note: Regression test for forced Claude streaming request (commit fb2b9ed)
-    - Path: geppetto/pkg/steps/ai/openai/chat_types.go
+    - Path: ../../../../../../../geppetto/pkg/steps/ai/openai/chat_types.go
       Note: Evidence for OpenAI Chat request shape.
-    - Path: geppetto/pkg/steps/ai/openai_responses/helpers.go
+    - Path: ../../../../../../../geppetto/pkg/steps/ai/openai_responses/helpers.go
       Note: Evidence for OpenAI Responses mapping rules.
-    - Path: llm-proxy/examples/README.md
+    - Path: examples/README.md
       Note: |-
         Phase 10 examples
         Pinocchio smoke-test runbook
-    - Path: llm-proxy/pkg/openaichat/stream.go
+    - Path: pkg/openaichat/stream.go
       Note: |-
         Phase 9 streaming implementation
         Live streaming fix: suppress duplicate requested-tool arguments after deltas
-    - Path: llm-proxy/pkg/openaichat/stream_test.go
+    - Path: pkg/openaichat/stream_test.go
       Note: Regression tests for requested-tool fallback and duplicate suppression
-    - Path: llm-proxy/pkg/openaichat/types.go
+    - Path: pkg/openaichat/types.go
       Note: |-
         Phase 6/expanded tool wire implementation
         Relaxed Chat Completions decoder for Pinocchio compatibility
-    - Path: llm-proxy/pkg/openaichat/types_test.go
+    - Path: pkg/openaichat/types_test.go
       Note: Regression test for unknown OpenAI compatibility fields sent by Pinocchio
-    - Path: llm-proxy/pkg/runtime/chat_service.go
+    - Path: pkg/runtime/chat_service.go
       Note: |-
         Phase 7 runtime implementation
         Live tool smoke fix: advertise request tools through Geppetto context registry
-    - Path: llm-proxy/pkg/server/server.go
+    - Path: pkg/server/server.go
       Note: Phase 8 endpoint implementation
-    - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/design-doc/01-openai-compatible-llm-proxy-design-and-implementation-guide.md
+    - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/design-doc/01-openai-compatible-llm-proxy-design-and-implementation-guide.md
       Note: |-
         Primary design and implementation guide authored during this investigation.
         Primary design doc produced by this investigation
-    - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/design-doc/02-simple-geppetto-engine-openai-responses-proxy-prototype.md
+    - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/design-doc/02-simple-geppetto-engine-openai-responses-proxy-prototype.md
       Note: Revised simple prototype design responding to scope correction
-    - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/design-doc/03-simple-geppetto-engine-openai-completions-proxy-prototype.md
+    - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/design-doc/03-simple-geppetto-engine-openai-completions-proxy-prototype.md
       Note: Completions-first copy/adaptation preserving the Responses design
-    - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/design-doc/04-simple-geppetto-engine-openai-chat-completions-proxy-prototype.md
+    - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/design-doc/04-simple-geppetto-engine-openai-chat-completions-proxy-prototype.md
       Note: New design for /v1/chat/completions endpoint
-    - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/02-research-logbook.md
+    - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/02-research-logbook.md
       Note: Research resource usefulness/outdatedness logbook created for the ticket
-    - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/01-generate-backend-smoke-profiles.py
+    - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/01-generate-backend-smoke-profiles.py
       Note: Recreates temporary backend smoke profiles from local Pinocchio config without committing secrets
-    - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/02-backend-tool-smoke.py
+    - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/02-backend-tool-smoke.py
       Note: Cross-backend live tool-call smoke runner
-    - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/03-provider-tool-smoke.py
+    - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/03-provider-tool-smoke.py
       Note: Earlier provider smoke runner used during live testing
-    - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/04-inspect-claude-request.go
+    - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/04-inspect-claude-request.go
       Note: Claude request inspection helper for Anthropic no-response debugging
-    - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/05-claude-stream-flag-smoke.py
+    - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/05-claude-stream-flag-smoke.py
       Note: Focused before/after live smoke script for Claude stream flag behavior
-    - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/artifacts/backend-tool-smoke-summary-after-geppetto-claude-stream-force.json
+    - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/artifacts/backend-tool-smoke-summary-after-geppetto-claude-stream-force.json
       Note: Final all-provider tool-call smoke evidence
-    - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/artifacts/backend-tool-smoke-summary.json
+    - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/artifacts/backend-tool-smoke-summary.json
       Note: Cross-backend smoke result summary
-    - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/artifacts/llm-proxy-tool-call-stream-after-fix.sse
+    - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/artifacts/llm-proxy-tool-call-stream-after-fix.sse
       Note: Streaming tool-call transcript after duplicate suppression fix
+    - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/sources/01-anthropic-extended-thinking.md
+      Note: Official Anthropic extended thinking source
+    - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/sources/02-anthropic-messages-streaming.md
+      Note: Official Anthropic streaming Messages source
+    - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/sources/04-openai-dev-reasoning-guide.md
+      Note: Official OpenAI reasoning source
+    - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/sources/05-openai-dev-streaming-responses.md
+      Note: Official OpenAI Responses streaming source
+    - Path: ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/sources/11-openai-chat-create.md
+      Note: OpenAI Chat API reference fetch placeholder showing Defuddle 403
 ExternalSources: []
 Summary: Chronological diary for creating the OpenAI-compatible llm-proxy docmgr ticket, evidence-backed design, and delivery bundle.
 LastUpdated: 2026-06-04T19:45:00-04:00
 WhatFor: Use this to understand how the design doc was produced, what evidence was gathered, and what remains to validate during implementation.
 WhenToUse: Read before continuing the llm-proxy implementation or reviewing the design decisions.
 ---
+
 
 
 
@@ -1974,3 +1985,89 @@ After fix final backend tool smoke summary:
   "openai-responses": "lookup_weather({\"city\":\"Rome\"})"
 }
 ```
+
+## Step 23: Pause thinking-stream code and capture official API docs
+
+This step paused the Claude thinking-stream implementation work long enough to verify the provider contracts from official documentation. The immediate smoke result showed Claude failing with `Unknown content block type: thinking`, and I began adding local support for `thinking` content blocks and `thinking_delta` / `signature_delta` events. The follow-up question correctly challenged whether that shape was documented, so I stopped to collect the sources before continuing.
+
+The official Anthropic docs do document `thinking` content blocks in streaming extended thinking, including `thinking_delta` and `signature_delta` deltas. The official OpenAI docs describe reasoning controls and reasoning items primarily for the Responses API, including `reasoning.effort`, reasoning summaries, `reasoning_tokens`, and `reasoning.encrypted_content`. The OpenAI platform API reference URLs returned 403 via Defuddle, so I also captured the official `developers.openai.com/api/docs` pages that Defuddle could read.
+
+### Prompt Context
+
+**User prompt (verbatim):** "wait, i thought we already had reasoning support in claude? what are you adding? is that even in the docs?
+
+for each API type, download official docs with defuddle and store them in the ticket sources/ directory"
+
+**Assistant interpretation:** Explain the uncommitted Claude thinking changes, verify them against official docs, and archive official API docs under the ticket before implementing further.
+
+**Inferred user intent:** Avoid speculative provider-shape changes and make the later writeup/source review evidence-backed.
+
+### What I did
+
+- Left the current Claude thinking changes uncommitted while collecting documentation.
+- Downloaded official Anthropic docs with Defuddle into `sources/`:
+  - `01-anthropic-extended-thinking.md`
+  - `02-anthropic-messages-streaming.md`
+  - `03-anthropic-messages-api.md`
+- Attempted official OpenAI platform API reference captures with Defuddle:
+  - `09-openai-responses-create.md` — Defuddle got `403 Forbidden`
+  - `10-openai-responses-streaming.md` — Defuddle got `403 Forbidden`
+  - `11-openai-chat-create.md` — Defuddle got `403 Forbidden`
+  - `12-openai-chat-streaming.md` — Defuddle got `403 Forbidden`
+- Captured readable official OpenAI developer docs with Defuddle:
+  - `04-openai-dev-reasoning-guide.md`
+  - `05-openai-dev-streaming-responses.md`
+  - `06-openai-dev-text-generation.md`
+  - `07-openai-dev-latest-model.md`
+- Added frontmatter and numeric prefixes so `docmgr doctor` can validate the source files.
+
+### Why
+
+- The Claude live smoke failure was not enough evidence to implement provider-shape support safely.
+- The official docs are now ticket-local sources for Anthropic, OpenAI Responses/reasoning, and OpenAI Chat/Completions behavior.
+
+### What worked
+
+- Anthropic docs clearly show streaming extended thinking uses `content_block_start` with `content_block.type: "thinking"`, `content_block_delta` with `delta.type: "thinking_delta"`, and `signature_delta` before `content_block_stop`.
+- OpenAI developer docs clearly show reasoning belongs primarily to the Responses API and that raw reasoning tokens are not visible, while reasoning summaries and encrypted reasoning items can be requested/retained.
+
+### What didn't work
+
+- Defuddle could not fetch several `platform.openai.com/docs/api-reference/...` pages:
+  - exact error: `Error: Failed to fetch: 403 Forbidden`
+- I preserved those failed fetch placeholders rather than silently omitting them.
+
+### What I learned
+
+- Claude reasoning support in Geppetto was present for OpenAI Responses-style reasoning blocks, but the Claude streaming parser path did not yet recognize Anthropic's `thinking` streaming content block from the live API.
+- The docs support adding explicit Claude `thinking`/`signature_delta` parsing, but the continuation/preservation semantics require care because Anthropic says thinking blocks may need to be round-tripped during tool-use flows.
+
+### What was tricky to build
+
+- The confusing part is the name overlap: Geppetto already has a canonical `BlockKindReasoning`, but Claude's provider-specific streaming content model still needs explicit parsing into that canonical representation.
+- OpenAI's public docs emphasize that raw reasoning tokens are not exposed, which means the proxy should not assume every provider can stream human-readable reasoning deltas.
+
+### What warrants a second pair of eyes
+
+- Review the uncommitted Claude thinking parser changes against `sources/01-anthropic-extended-thinking.md` and `sources/02-anthropic-messages-streaming.md` before committing.
+- Decide whether the OpenAI-compatible Chat Completions proxy should expose reasoning deltas at all, or only verify that Geppetto persists/suppresses them correctly.
+
+### What should be done in the future
+
+- Complete a source-backed implementation plan before continuing the Claude parser changes.
+- If OpenAI platform API reference pages remain 403 to Defuddle, use the readable official developer docs as primary sources and note the limitation.
+
+### Code review instructions
+
+- Start with `sources/01-anthropic-extended-thinking.md` around the `Streaming thinking` section.
+- Then inspect `sources/04-openai-dev-reasoning-guide.md` around reasoning summaries and encrypted reasoning items.
+- Check `git -C geppetto status --short` to see the currently uncommitted Claude thinking parser files.
+
+### Technical details
+
+Current uncommitted Geppetto files touched by the paused experiment:
+
+- `/home/manuel/workspaces/2026-06-04/llm-proxy/geppetto/pkg/steps/ai/claude/api/content.go`
+- `/home/manuel/workspaces/2026-06-04/llm-proxy/geppetto/pkg/steps/ai/claude/api/messages.go`
+- `/home/manuel/workspaces/2026-06-04/llm-proxy/geppetto/pkg/steps/ai/claude/api/streaming.go`
+- `/home/manuel/workspaces/2026-06-04/llm-proxy/geppetto/pkg/steps/ai/claude/content-block-merger.go`

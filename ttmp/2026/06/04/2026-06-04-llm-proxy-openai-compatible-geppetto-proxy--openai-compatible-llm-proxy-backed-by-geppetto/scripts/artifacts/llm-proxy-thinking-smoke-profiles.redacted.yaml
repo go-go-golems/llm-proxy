@@ -1,0 +1,38 @@
+profiles:
+  claude-thinking-sonnet-smoke:
+    inference_settings:
+      api:
+        api_keys:
+          claude-api-key: <redacted>
+        base_urls:
+          claude-base-url: https://api.anthropic.com
+      chat:
+        api_type: claude
+        engine: claude-sonnet-4-6
+        max_response_tokens: 4096
+        stream: false
+      claude: {}
+      client:
+        timeout: 120
+      inference:
+        thinking_budget: 1024
+  openai-responses-thinking-smoke:
+    inference_settings:
+      api:
+        api_keys:
+          openai-api-key: <redacted>
+      chat:
+        api_type: openai-responses
+        engine: gpt-5-nano
+        max_response_tokens: 8192
+      client:
+        timeout: 180
+      inference:
+        reasoning_effort: low
+        reasoning_summary: auto
+      model_info:
+        reasoning: true
+      openai:
+        reasoning_effort: low
+        reasoning_summary: auto
+slug: default

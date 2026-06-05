@@ -311,3 +311,12 @@ Marked live three-backend tool-call smoke task complete after final all-pass sum
 
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/tasks.md — Task 64 complete
 
+
+## 2026-06-05
+
+Captured official Anthropic and OpenAI reasoning/streaming docs with Defuddle under ticket sources/ before continuing thinking-stream implementation
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/sources — Official docs source archive
+
