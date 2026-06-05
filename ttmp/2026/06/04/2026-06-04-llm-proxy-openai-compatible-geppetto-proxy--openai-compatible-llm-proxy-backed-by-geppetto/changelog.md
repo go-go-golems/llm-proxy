@@ -107,3 +107,15 @@ Phase 2: added Geppetto profile resolver, model listing, engine-provider seam, a
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/server/server.go — Added /v1/models handler seam
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/reference/01-investigation-diary.md — Phase 2 diary note
 
+
+## 2026-06-04
+
+Phase 3: wired non-streaming /v1/completions to Geppetto RunInferenceWithResult
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/cmd/llm-proxy-server/main.go — Wires profile-backed completion service when --profiles is provided
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/openaicompletions/mapper.go — Prompt-to-turn and turn-to-completion mapping
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/runtime/completion_service.go — Geppetto-backed non-streaming completion flow
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/01-investigation-diary.md — Recorded Phase 3 implementation
+

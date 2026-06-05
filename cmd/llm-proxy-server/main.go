@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	profilespkg "github.com/go-go-golems/llm-proxy/pkg/profiles"
+	runtimepkg "github.com/go-go-golems/llm-proxy/pkg/runtime"
 	"github.com/go-go-golems/llm-proxy/pkg/server"
 )
 
@@ -15,15 +16,17 @@ func main() {
 	profiles := flag.String("profiles", "", "path to Geppetto profile YAML (used in later phases)")
 	flag.Parse()
 	var modelLister server.ModelLister
+	var completionService server.CompletionService
 	if *profiles != "" {
 		resolver, err := profilespkg.NewYAMLResolver(*profiles)
 		if err != nil {
 			log.Fatalf("load profiles: %v", err)
 		}
 		modelLister = profileModelLister{resolver: resolver}
+		completionService = &runtimepkg.GeppettoCompletionService{Profiles: resolver}
 	}
 
-	srv := server.New(server.Options{ModelLister: modelLister})
+	srv := server.New(server.Options{CompletionService: completionService, ModelLister: modelLister})
 	log.Printf("llm-proxy-server listening on %s", *listen)
 	if err := http.ListenAndServe(*listen, srv.Handler()); err != nil {
 		log.Fatal(err)

@@ -823,3 +823,87 @@ The `/v1/completions` handler still uses the placeholder completion service. Pro
   - `pkg/server/server_test.go`
   - `go.mod`
   - `go.sum`
+
+## Step 10: Implement Phase 3 non-streaming Geppetto inference bridge
+
+This step replaced the placeholder-only path with a Geppetto-backed completion service for non-streaming `/v1/completions` requests. The server now loads a profile resolver from `--profiles`, uses the request `model` as the profile slug, creates a Geppetto engine through the engine provider seam, maps the prompt into a `turns.Turn`, runs `engine.RunInferenceWithResult`, and maps generated assistant text back into an OpenAI `text_completion` response.
+
+The implementation still keeps streaming disabled at the HTTP handler. Streaming is the next phase and will reuse the same mapper and service structure with an event sink.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 7)
+
+**Assistant interpretation:** Continue phase-by-phase implementation by wiring the actual non-streaming Geppetto inference bridge.
+
+**Inferred user intent:** The prototype should now perform real Geppetto inference for `/v1/completions`, not only validate HTTP requests.
+
+### What I did
+
+- Added `pkg/openaicompletions/mapper.go`:
+  - `RequestToTurn` maps a prompt string to one user text block.
+  - `TurnToCompletion` maps generated assistant text blocks to `choices[0].text`.
+  - Usage and finish reason mapping from canonical Geppetto inference metadata.
+- Added `pkg/openaicompletions/mapper_test.go`.
+- Added `pkg/runtime/completion_service.go`:
+  - resolves profile slug,
+  - creates engine,
+  - maps request to turn,
+  - runs `engine.RunInferenceWithResult`,
+  - maps output turn to an OpenAI completion.
+- Added `pkg/runtime/completion_service_test.go` with fake engines for success and error cases.
+- Updated `cmd/llm-proxy-server/main.go` to use `GeppettoCompletionService` when `--profiles` is provided.
+- Ran:
+  - `cd llm-proxy && go test ./... -count=1`
+  - `cd llm-proxy && GOWORK=off go test ./... -count=1`
+
+### Why
+
+- This is the core prototype bridge: OpenAI Completions request to Geppetto inference to OpenAI Completions response.
+- Using fake engines keeps tests fast and avoids requiring provider credentials.
+
+### What worked
+
+- Workspace and `GOWORK=off` test runs passed.
+- The fake engine test confirms generated assistant text becomes `choices[0].text`.
+- The error test confirms engine errors propagate instead of returning a misleading completion.
+
+### What didn't work
+
+- N/A. The non-streaming bridge tests passed after implementation.
+
+### What I learned
+
+- `engine.RunInferenceWithResult` works well as the service boundary because it handles engines that only implement `RunInference` and still synthesizes canonical metadata.
+- Capturing `preBlockCount` before inference is enough to isolate generated output blocks from prompt/input blocks.
+
+### What was tricky to build
+
+- The block filtering rule needs to avoid echoing the prompt. The mapper records the input block count and only reads blocks appended after inference.
+- The current extraction includes blocks where `Kind == BlockKindLLMText` or `Role == assistant`; this is intentionally lenient for provider engines that mark assistant blocks differently, but it warrants review.
+
+### What warrants a second pair of eyes
+
+- Review `generatedAssistantText` to confirm it should include assistant-role blocks even when kind is not `BlockKindLLMText`.
+- Review error status mapping: service errors currently become generic server errors from the handler; unknown profile should probably become a 404 later.
+
+### What should be done in the future
+
+- Phase 4 should add streaming by attaching a channel-backed event sink and mapping `EventTextDelta` to OpenAI Completions SSE chunks.
+- Add request override mapping for `max_tokens`, `temperature`, `top_p`, and `stop` after the basic streaming bridge works.
+
+### Code review instructions
+
+- Start in `pkg/runtime/completion_service.go` for the inference flow.
+- Then review `pkg/openaicompletions/mapper.go` for turn/request mapping.
+- Validate with `cd llm-proxy && go test ./... -count=1` and `cd llm-proxy && GOWORK=off go test ./... -count=1`.
+
+### Technical details
+
+- New files:
+  - `pkg/openaicompletions/mapper.go`
+  - `pkg/openaicompletions/mapper_test.go`
+  - `pkg/runtime/completion_service.go`
+  - `pkg/runtime/completion_service_test.go`
+- Modified file:
+  - `cmd/llm-proxy-server/main.go`

@@ -29,16 +29,16 @@
 - [x] Add `pkg/profiles.ProfileResolver` that loads Geppetto profile YAML and resolves request `model` as `EngineProfileSlug`.
 - [x] Add optional `GET /v1/models` that lists profile slugs from the loaded registry.
 - [x] Add `pkg/runtime.EngineProvider` over Geppetto's standard engine factory.
-- [ ] Wire the server handler to resolve the profile and create an engine before inference.
+- [x] Wire the server handler to resolve the profile and create an engine before inference.
 - [x] Add tests for known/missing profile behavior using an in-memory or fake resolver.
 
 ### Phase 3: Non-streaming Geppetto inference bridge
 
-- [ ] Map OpenAI Completions `prompt` string to a Geppetto `turns.Turn` with one user text block.
-- [ ] Run `engine.RunInferenceWithResult` for non-streaming completion requests.
-- [ ] Extract generated assistant text from blocks appended after the input block count.
-- [ ] Map Geppetto inference metadata to OpenAI `usage` and `finish_reason` where available.
-- [ ] Add fake-engine handler tests for successful non-streaming completions and engine errors.
+- [x] Map OpenAI Completions `prompt` string to a Geppetto `turns.Turn` with one user text block.
+- [x] Run `engine.RunInferenceWithResult` for non-streaming completion requests.
+- [x] Extract generated assistant text from blocks appended after the input block count.
+- [x] Map Geppetto inference metadata to OpenAI `usage` and `finish_reason` where available.
+- [x] Add fake-engine handler tests for successful non-streaming completions and engine errors.
 
 ### Phase 4: Streaming Completions bridge
 
