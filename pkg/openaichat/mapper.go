@@ -106,7 +106,7 @@ func parseToolChoice(raw json.RawMessage) (geppettoengine.ToolChoice, bool, erro
 		return "", false, FieldError{Field: "tool_choice", Message: "tool_choice must be a string or object", Code: "unsupported_tool_choice"}
 	}
 	if obj.Type == "function" {
-		return geppettoengine.ToolChoiceRequired, true, nil
+		return "", false, FieldError{Field: "tool_choice", Message: "named function tool_choice is not supported in this prototype", Code: "unsupported_tool_choice"}
 	}
 	return "", false, FieldError{Field: "tool_choice", Message: fmt.Sprintf("unsupported tool_choice type %q", obj.Type), Code: "unsupported_tool_choice"}
 }

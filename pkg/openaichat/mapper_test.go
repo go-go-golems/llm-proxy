@@ -103,3 +103,26 @@ func TestMapperTurnToChatCompletionWithToolCalls(t *testing.T) {
 		t.Fatalf("arguments = %q", resp.Choices[0].Message.ToolCalls[0].Function.Arguments)
 	}
 }
+
+func TestMapperRejectsNamedFunctionToolChoice(t *testing.T) {
+	req := &ChatCompletionRequest{
+		Model:      "sonnet",
+		ToolChoice: json.RawMessage(`{"type":"function","function":{"name":"lookup"}}`),
+		Tools: []ChatTool{
+			{Type: "function", Function: ChatToolFunction{Name: "lookup"}},
+			{Type: "function", Function: ChatToolFunction{Name: "other"}},
+		},
+		Messages: []ChatMessage{{Role: "user", Content: rawString("hello")}},
+	}
+	_, err := Mapper{}.RequestToTurn(req)
+	if err == nil {
+		t.Fatalf("expected named function tool_choice error")
+	}
+	fieldErr, ok := err.(FieldError)
+	if !ok {
+		t.Fatalf("expected FieldError, got %T: %v", err, err)
+	}
+	if fieldErr.Field != "tool_choice" || fieldErr.Code != "unsupported_tool_choice" {
+		t.Fatalf("field error = %#v", fieldErr)
+	}
+}
