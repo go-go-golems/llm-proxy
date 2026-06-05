@@ -33,7 +33,11 @@ RelatedFiles:
         Phase 10 examples
         Pinocchio smoke-test runbook
     - Path: llm-proxy/pkg/openaichat/stream.go
-      Note: Phase 9 streaming implementation
+      Note: |-
+        Phase 9 streaming implementation
+        Live streaming fix: suppress duplicate requested-tool arguments after deltas
+    - Path: llm-proxy/pkg/openaichat/stream_test.go
+      Note: Regression tests for requested-tool fallback and duplicate suppression
     - Path: llm-proxy/pkg/openaichat/types.go
       Note: |-
         Phase 6/expanded tool wire implementation
@@ -41,7 +45,9 @@ RelatedFiles:
     - Path: llm-proxy/pkg/openaichat/types_test.go
       Note: Regression test for unknown OpenAI compatibility fields sent by Pinocchio
     - Path: llm-proxy/pkg/runtime/chat_service.go
-      Note: Phase 7 runtime implementation
+      Note: |-
+        Phase 7 runtime implementation
+        Live tool smoke fix: advertise request tools through Geppetto context registry
     - Path: llm-proxy/pkg/server/server.go
       Note: Phase 8 endpoint implementation
     - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/design-doc/01-openai-compatible-llm-proxy-design-and-implementation-guide.md
@@ -62,6 +68,7 @@ LastUpdated: 2026-06-04T19:45:00-04:00
 WhatFor: Use this to understand how the design doc was produced, what evidence was gathered, and what remains to validate during implementation.
 WhenToUse: Read before continuing the llm-proxy implementation or reviewing the design decisions.
 ---
+
 
 
 
@@ -1649,3 +1656,109 @@ The first smoke attempts found two practical compatibility and environment issue
   - `pinocchio --log-level debug code unix --profile llm-proxy-groq-oss-20b --non-interactive --output text "Reply with exactly: llm-proxy chat smoke ok"`
 - Successful stdout:
   - `llm-proxy chat smoke ok`
+
+## Step 20: Live tool-call smoke testing against an upstream provider
+
+This step ran live tool-call smoke tests through the proxy against the `groq-oss-20b` Geppetto profile. The test covered three paths: a non-streaming request that forces a tool call, a follow-up request that sends a client-executed tool result back to the model, and a streaming request that emits `delta.tool_calls` chunks.
+
+The smoke test exposed a real integration bug. The proxy mapped OpenAI `tools` into Geppetto turn data, but Geppetto's OpenAI engine advertises tools to providers from the live tool registry in `context.Context`, not from the persisted `engine.KeyToolDefinitions` snapshot. I fixed the runtime service so request tools are registered into a Geppetto in-memory tool registry and attached to the inference context, while keeping the turn snapshot for durable metadata.
+
+### Prompt Context
+
+**User prompt (verbatim):** "do live-tool call smoke testing"
+
+**Assistant interpretation:** Run live provider smoke tests for Chat Completions function-tool behavior through the proxy, fix issues discovered by the live path, and validate the result.
+
+**Inferred user intent:** Prove that tool-call mapping works against an actual provider, not only fake engines and unit tests.
+
+**Commit (code):** db094577cbd3c92e91ba645e6a85caa6aa80b535 — "Advertise chat tools to Geppetto engines"
+
+### What I did
+
+- Started `llm-proxy-server` locally on `127.0.0.1:18081` using `~/.config/pinocchio/profiles.yaml` as the Geppetto profile source.
+- Sent a non-streaming Chat Completions request to `/v1/chat/completions` with:
+  - `model: "groq-oss-20b"`
+  - one `lookup_weather` function tool
+  - `tool_choice: "required"`
+- Observed the first live attempt returned no tool calls because the provider request did not receive advertised tools.
+- Fixed `pkg/runtime/chat_service.go` so request tools are registered with `geppetto/pkg/inference/tools.NewInMemoryToolRegistry()` and attached through `tools.WithRegistry(ctx, registry)`.
+- Added runtime test coverage proving request tools are visible to fake engines through `tools.AdvertisedToolDefinitionsFromContext(ctx)`.
+- Sent a follow-up request containing the assistant tool call and a `role: "tool"` result.
+- Sent a streaming tool-call request and observed `delta.tool_calls` chunks.
+- Fixed a streaming duplicate-arguments issue where `EventToolCallRequested` repeated full arguments after `EventToolCallArgumentsDelta` events had already emitted them.
+- Added stream tests proving the fallback `EventToolCallRequested` path is kept only when no argument deltas were seen.
+- Stopped the local smoke server after testing.
+- Ran `make lint test`.
+
+### Why
+
+- Unit tests with fake engines verified mapper shape, but did not prove that Geppetto's provider engines actually receive tool definitions.
+- Live smoke testing is required because the Geppetto OpenAI engine reads runtime tool definitions from context, not from the persisted turn snapshot.
+
+### What worked
+
+- After the context-registry fix, the non-streaming tool-call smoke returned `finish_reason: "tool_calls"` and a `lookup_weather` call with arguments `{"city":"Paris"}`.
+- The follow-up tool-result request returned a normal assistant message with `finish_reason: "stop"`.
+- The streaming tool-call request emitted:
+  - an assistant role chunk,
+  - a tool-call start chunk with `name: "lookup_weather"`,
+  - one argument chunk with `{"city":"Berlin"}`,
+  - a final chunk with `finish_reason: "tool_calls"`,
+  - `[DONE]`.
+- `make lint test` passed, and pre-commit lint/test also passed during the code commit.
+
+### What didn't work
+
+- Initial non-streaming live tool-call request returned HTTP 200 but no tool call:
+  - response shape: `"message":{"role":"assistant","content":""},"finish_reason":"stop"`
+  - root cause: tools were written to `Turn.Data` only; Geppetto's OpenAI engine used `tools.AdvertisedToolDefinitionsFromContext(ctx)`.
+- Initial streaming live tool-call request duplicated the full argument payload:
+  - two argument chunks both contained `{"city":"Berlin"}`.
+  - root cause: the provider emitted argument deltas and a later requested-tool event. The proxy treated the requested-tool event as a fallback even after deltas had already been emitted.
+
+### What I learned
+
+- `engine.KeyToolDefinitions` is a durable per-turn snapshot, not the live tool-advertisement path for Geppetto's OpenAI engine.
+- The live tool-advertisement path is the Geppetto tool registry attached to context.
+- Provider event streams may contain both incremental argument deltas and a final requested-tool event. The proxy must suppress the fallback full-argument event when deltas already appeared for the same tool call ID.
+
+### What was tricky to build
+
+- The proxy needs two representations of the same tools for different reasons. `engine.KeyToolDefinitions` remains useful as durable turn data and for serialization, but the provider engine requires a live registry in `context.Context`. The runtime now builds that registry from the OpenAI request before calling `RunInferenceWithResult`.
+- The streaming duplicate fix required remembering per-tool-call state. The `ChatEventSink` now records which tool call IDs have emitted argument deltas. If `EventToolCallRequested` arrives later for the same ID, its full input is suppressed. If no deltas were seen, the requested event still emits a full argument chunk as a fallback.
+
+### What warrants a second pair of eyes
+
+- The request-tool registry currently registers schemas only; it does not register executable functions. This is correct for client-driven OpenAI tool loops but should be explicitly preserved as a security boundary.
+- `jsonSchemaFromMap` decodes request parameter maps into `jsonschema.Schema`. Review whether unsupported JSON Schema features should be validated or passed through unchanged.
+- The duplicate-suppression rule is based on observed provider behavior from this smoke test; it should be checked against other providers that emit different tool event sequences.
+
+### What should be done in the future
+
+- Add live smoke coverage for a second provider once a known tool-capable profile is available.
+- Add request override mapping for tool-related fields such as `parallel_tool_calls` if needed by clients.
+- Decide whether to store smoke-test transcripts under the ticket as formal artifacts.
+
+### Code review instructions
+
+- Review `pkg/runtime/chat_service.go`, especially `contextWithRequestTools` and `jsonSchemaFromMap`.
+- Review `pkg/openaichat/stream.go`, especially duplicate suppression for `EventToolCallRequested`.
+- Review tests:
+  - `pkg/runtime/chat_service_test.go`
+  - `pkg/openaichat/stream_test.go`
+- Validate with `cd llm-proxy && make lint test`.
+
+### Technical details
+
+- Successful non-streaming tool-call summary:
+  - `finish_reason: tool_calls`
+  - `tool_calls[0].function.name: lookup_weather`
+  - `tool_calls[0].function.arguments: {"city":"Paris"}`
+- Successful follow-up tool-result summary:
+  - `finish_reason: stop`
+  - assistant content: `Got it.`
+- Successful streaming tool-call summary after duplicate fix:
+  - `frame_count: 5`
+  - `arg_frame_count: 1`
+  - argument chunk: `{"city":"Berlin"}`
+  - final finish reason: `tool_calls`

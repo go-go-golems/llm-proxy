@@ -262,3 +262,14 @@ Annotated Pinocchio smoke-test diary with commit c9284d1
 
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/01-investigation-diary.md — Commit hash for Pinocchio smoke-test diary
 
+
+## 2026-06-05
+
+Live tool-call smoke tested Chat Completions and fixed request tool advertisement plus duplicate streamed arguments
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/openaichat/stream.go — Streaming tool argument duplicate suppression
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/runtime/chat_service.go — Request tools now become a Geppetto context registry
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/01-investigation-diary.md — Live tool-call smoke diary
+
