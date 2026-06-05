@@ -12,7 +12,7 @@ DocType: reference
 Intent: short-term
 Owners: []
 Summary: Index and reproduction notes for live provider smoke-test scripts and artifacts.
-LastUpdated: 2026-06-05T06:59:00-04:00
+LastUpdated: 2026-06-05T07:30:00-04:00
 WhatFor: Use this to rerun or inspect the live Chat Completions tool-call smoke tests.
 WhenToUse: Read when debugging provider-specific tool-call behavior or reproducing backend smoke tests.
 ---
@@ -27,6 +27,7 @@ This directory stores the ad-hoc scripts and request/response artifacts used whi
 - `02-backend-tool-smoke.py` calls `/v1/chat/completions` against three temporary backend profiles: OpenAI Chat-compatible, Anthropic/Claude, and OpenAI Responses.
 - `03-provider-tool-smoke.py` is the earlier provider smoke runner used with profiles from the local Pinocchio profile file.
 - `04-inspect-claude-request.go` inspects the resolved Claude profile and generated Claude request shape for debugging the Anthropic `no response` failure.
+- `05-claude-stream-flag-smoke.py` compares Claude proxy behavior with profile `chat.stream: false` versus `chat.stream: true` and preserves the request/response evidence.
 
 ## Artifacts
 
@@ -36,9 +37,13 @@ The `artifacts/` directory contains non-secret request JSON, response bodies, SS
 - `llm-proxy-tool-result-request.json` / `llm-proxy-tool-result-response.raw`: follow-up client-driven tool-result request.
 - `llm-proxy-tool-call-stream.sse`: streaming tool-call transcript before duplicate argument suppression.
 - `llm-proxy-tool-call-stream-after-fix.sse`: streaming tool-call transcript after duplicate argument suppression.
-- `backend-tool-smoke-summary.json`: cross-backend smoke summary; OpenAI Chat and OpenAI Responses passed, Anthropic failed with `no response`.
+- `backend-tool-smoke-summary.json`: cross-backend smoke summary before the Geppetto Claude streaming fix; OpenAI Chat and OpenAI Responses passed, Anthropic failed with `no response`.
+- `before-geppetto-claude-stream-force-*`: focused reproduction showing `chat.stream: false` failed with `no response` while `chat.stream: true` succeeded before the fix.
+- `after-geppetto-claude-stream-force-*`: focused reproduction showing both Claude stream flag variants succeeded after forcing Claude `RunInference` requests into streaming mode.
+- `backend-tool-smoke-summary-after-geppetto-claude-stream-force.json`: final all-provider tool-call smoke summary; OpenAI Chat, Anthropic, and OpenAI Responses all returned OpenAI-compatible `tool_calls`.
 - `anthropic-*.raw` and `haiku-*.raw`: Anthropic failure artifacts used to debug the backend-specific issue.
 - `llm-proxy-backend-smoke-profiles.redacted.yaml`: redacted shape of the temporary backend smoke profiles.
+- `llm-proxy-backend-smoke-profiles-after-geppetto-claude-stream-force.redacted.yaml`: redacted shape of the final all-provider smoke profile file.
 
 ## Reproduction outline
 

@@ -1,0 +1,33 @@
+{
+  "model": "openai-responses-smoke",
+  "messages": [
+    {
+      "role": "user",
+      "content": "You must call the lookup_weather function exactly once for city Rome. Do not answer directly; return only a tool call."
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "lookup_weather",
+        "description": "Look up current weather for a city.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string",
+              "description": "City name"
+            }
+          },
+          "required": [
+            "city"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
+  "tool_choice": "required",
+  "stream": false
+}

@@ -1,0 +1,58 @@
+[
+  {
+    "model": "anthropic-stream-false",
+    "curl_returncode": 0,
+    "http_status": "200",
+    "request_path": "/tmp/llm-proxy-claude-stream-flag-artifacts-after-fix/claude-anthropic-stream-false-request.json",
+    "response_path": "/tmp/llm-proxy-claude-stream-flag-artifacts-after-fix/claude-anthropic-stream-false-response.raw",
+    "parsed": {
+      "id": "chatcmpl_proxy_1780658764913069740",
+      "object": "chat.completion",
+      "created": 1780658764,
+      "model": "anthropic-stream-false",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "anthropic stream flag ok"
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 16,
+        "completion_tokens": 8,
+        "total_tokens": 24
+      }
+    }
+  },
+  {
+    "model": "anthropic-stream-true",
+    "curl_returncode": 0,
+    "http_status": "200",
+    "request_path": "/tmp/llm-proxy-claude-stream-flag-artifacts-after-fix/claude-anthropic-stream-true-request.json",
+    "response_path": "/tmp/llm-proxy-claude-stream-flag-artifacts-after-fix/claude-anthropic-stream-true-response.raw",
+    "parsed": {
+      "id": "chatcmpl_proxy_1780658765472923219",
+      "object": "chat.completion",
+      "created": 1780658765,
+      "model": "anthropic-stream-true",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "anthropic stream flag ok"
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 16,
+        "completion_tokens": 8,
+        "total_tokens": 24
+      }
+    }
+  }
+]

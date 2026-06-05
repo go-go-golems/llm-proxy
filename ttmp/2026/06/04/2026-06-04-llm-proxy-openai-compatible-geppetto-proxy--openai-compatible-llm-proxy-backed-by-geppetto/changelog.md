@@ -292,3 +292,22 @@ Renamed smoke artifact index to numbered docmgr-compatible markdown
 
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/00-smoke-test-artifacts.md — Artifact index and reproduction notes
 
+
+## 2026-06-05
+
+Fixed Anthropic Claude proxy no-response failure by forcing Geppetto Claude RunInference requests into streaming mode; all three backend tool-call smokes now pass (Geppetto commit fb2b9ed)
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/geppetto/pkg/steps/ai/claude/engine_claude.go — Claude streaming-mode fix
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/artifacts/backend-tool-smoke-summary-after-geppetto-claude-stream-force.json — All-provider smoke summary
+
+
+## 2026-06-05
+
+Marked live three-backend tool-call smoke task complete after final all-pass summary
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/tasks.md — Task 64 complete
+
