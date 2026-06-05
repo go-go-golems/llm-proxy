@@ -50,10 +50,10 @@
 
 ### Phase 5: Prototype polish and documentation
 
-- [ ] Add `examples/profiles.yaml` and curl smoke examples for `/healthz`, `/v1/models`, and `/v1/completions`.
-- [ ] Run `go test ./... -count=1` and document any failures.
-- [ ] Update the diary after each implementation phase with commands, failures, and review instructions.
-- [ ] Commit phase-sized changes with focused messages.
+- [x] Add `examples/profiles.yaml` and curl smoke examples for `/healthz`, `/v1/models`, and `/v1/completions`.
+- [x] Run `go test ./... -count=1` and document any failures.
+- [x] Update the diary after each implementation phase with commands, failures, and review instructions.
+- [x] Commit phase-sized changes with focused messages.
 
 ## Deferred tasks
 

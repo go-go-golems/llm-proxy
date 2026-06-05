@@ -131,3 +131,14 @@ Phase 4: added streaming /v1/completions bridge from Geppetto text events to SSE
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/server/sse.go — SSE writer for Completions chunks
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/01-investigation-diary.md — Recorded Phase 4 implementation
 
+
+## 2026-06-04
+
+Phase 5: added examples and smoke-tested profile loading plus /healthz and /v1/models
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/examples/README.md — Prototype run and curl examples
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/examples/profiles.yaml — Example Geppetto profile YAML for model listing and provider-backed completions
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/01-investigation-diary.md — Recorded Phase 5 validation and YAML correction
+

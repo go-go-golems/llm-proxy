@@ -999,3 +999,88 @@ The server keeps `http.ResponseWriter` ownership in the handler goroutine. The G
   - `pkg/runtime/completion_service_test.go`
   - `pkg/server/server.go`
   - `pkg/server/server_test.go`
+
+## Step 12: Add prototype examples and final smoke validation
+
+This step added example profile and curl documentation, then ran the full test suite and a local server smoke check for `/healthz` and `/v1/models`. It also uncovered one important Geppetto profile YAML rule: the current engine profile YAML format rejects `default_profile_slug` and expects the default to be inferred from a profile named `default` or from sorted profile slugs.
+
+After removing `default_profile_slug` from the example, the server started successfully with `--profiles ./examples/profiles.yaml` and listed the example profile slugs as OpenAI models.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 7)
+
+**Assistant interpretation:** Finish the current phase sequence with examples, validation, diary, and final commit.
+
+**Inferred user intent:** Leave the prototype in a reviewable state with runnable examples and documented validation evidence.
+
+### What I did
+
+- Added `examples/profiles.yaml` with example `sonnet` and `gpt-responses` Geppetto profiles.
+- Added `examples/README.md` with curl commands for:
+  - `GET /healthz`
+  - `GET /v1/models`
+  - non-streaming `POST /v1/completions`
+  - streaming `POST /v1/completions`
+- Ran:
+  - `cd llm-proxy && go test ./... -count=1`
+  - `cd llm-proxy && GOWORK=off go test ./... -count=1`
+- Ran a local smoke check:
+  - `go run ./cmd/llm-proxy-server --profiles ./examples/profiles.yaml --listen 127.0.0.1:18080`
+  - `curl -sS http://127.0.0.1:18080/healthz`
+  - `curl -sS http://127.0.0.1:18080/v1/models`
+
+### Why
+
+- Examples make it clear how the prototype is intended to be run and how profile slugs appear as OpenAI model IDs.
+- The smoke test validates profile YAML loading and server startup, not only unit tests.
+
+### What worked
+
+- `go test ./... -count=1` passed.
+- `GOWORK=off go test ./... -count=1` passed.
+- After fixing the example YAML, `/healthz` returned `{"status":"ok"}`.
+- `/v1/models` returned both `gpt-responses` and `sonnet` as model IDs.
+
+### What didn't work
+
+- The first smoke run failed with this exact error:
+  - `2026/06/04 21:14:59 load profiles: validation error (registry.default_profile_slug): engine profile YAML does not support default_profile_slug; use profile slug "default"`
+  - `exit status 1`
+- The failing command was:
+  - `go run ./cmd/llm-proxy-server --profiles ./examples/profiles.yaml --listen 127.0.0.1:18080`
+- The fix was to remove `default_profile_slug: sonnet` from `examples/profiles.yaml`.
+
+### What I learned
+
+- The current Geppetto engine profile YAML source format intentionally does not support serializing `default_profile_slug`; default selection is inferred.
+- The profile resolver's `/v1/models` path is a good low-risk smoke check because it validates YAML loading without requiring provider credentials.
+
+### What was tricky to build
+
+- The example profile YAML had to follow the current Geppetto profile YAML codec rather than the earlier design-doc sketch. The codec rejects `default_profile_slug`, so examples should avoid that field.
+
+### What warrants a second pair of eyes
+
+- Confirm whether examples should include a `default` profile to make default behavior deterministic, or whether sorted profile selection is acceptable.
+- Confirm whether `${ANTHROPIC_API_KEY}` and `${OPENAI_API_KEY}` placeholders are actually expanded by the loader in the intended runtime path.
+
+### What should be done in the future
+
+- Add a real provider smoke test once API keys/profile credential loading are confirmed.
+- Remove or rename the template `cmd/XXX` command in a cleanup pass if desired.
+
+### Code review instructions
+
+- Start with `examples/README.md` and `examples/profiles.yaml`.
+- Run `cd llm-proxy && go test ./... -count=1`.
+- Smoke test without provider calls by running the server and calling `/healthz` plus `/v1/models`.
+
+### Technical details
+
+- Example files:
+  - `examples/README.md`
+  - `examples/profiles.yaml`
+- Successful smoke outputs:
+  - `{"status":"ok"}`
+  - `{"data":[{"id":"gpt-responses","object":"model","owned_by":"geppetto-profile"},{"id":"sonnet","object":"model","owned_by":"geppetto-profile"}],"object":"list"}`

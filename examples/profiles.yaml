@@ -1,0 +1,32 @@
+slug: default
+display_name: Prototype profiles
+profiles:
+  sonnet:
+    slug: sonnet
+    display_name: Claude Sonnet through Geppetto
+    inference_settings:
+      chat:
+        api_type: claude
+        engine: claude-3-5-sonnet-20241022
+        max_response_tokens: 1024
+        temperature: 0.2
+      api:
+        api_keys:
+          claude-api-key: ${ANTHROPIC_API_KEY}
+        base_urls:
+          claude-base-url: https://api.anthropic.com
+
+  gpt-responses:
+    slug: gpt-responses
+    display_name: OpenAI Responses through Geppetto
+    inference_settings:
+      chat:
+        api_type: open-responses
+        engine: gpt-4o-mini
+        max_response_tokens: 1024
+        temperature: 0.2
+      api:
+        api_keys:
+          openai-api-key: ${OPENAI_API_KEY}
+        base_urls:
+          openai-base-url: https://api.openai.com/v1
