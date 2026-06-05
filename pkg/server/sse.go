@@ -18,31 +18,31 @@ func (s *Server) writeChatSSE(w http.ResponseWriter, r *http.Request, frames <-c
 }
 
 type sseFrameSource interface {
-	Next() (any, error, bool, bool)
+	Next() (any, bool, bool, error)
 }
 
 type completionFrameSource struct {
 	frames <-chan openaicompletions.CompletionStreamFrame
 }
 
-func (s completionFrameSource) Next() (any, error, bool, bool) {
+func (s completionFrameSource) Next() (any, bool, bool, error) {
 	frame, ok := <-s.frames
 	if !ok {
-		return nil, nil, true, false
+		return nil, true, false, nil
 	}
-	return frame.Chunk, frame.Err, frame.Done, true
+	return frame.Chunk, frame.Done, true, frame.Err
 }
 
 type chatFrameSource struct {
 	frames <-chan openaichat.ChatStreamFrame
 }
 
-func (s chatFrameSource) Next() (any, error, bool, bool) {
+func (s chatFrameSource) Next() (any, bool, bool, error) {
 	frame, ok := <-s.frames
 	if !ok {
-		return nil, nil, true, false
+		return nil, true, false, nil
 	}
-	return frame.Chunk, frame.Err, frame.Done, true
+	return frame.Chunk, frame.Done, true, frame.Err
 }
 
 func writeSSE(w http.ResponseWriter, r *http.Request, frames sseFrameSource) {
@@ -61,16 +61,22 @@ func writeSSE(w http.ResponseWriter, r *http.Request, frames sseFrameSource) {
 			return
 		default:
 		}
-		chunk, frameErr, done, ok := frames.Next()
+		chunk, done, ok, frameErr := frames.Next()
 		if !ok || done {
-			fmt.Fprint(w, "data: [DONE]\n\n")
+			if _, err := fmt.Fprint(w, "data: [DONE]\n\n"); err != nil {
+				return
+			}
 			flusher.Flush()
 			return
 		}
 		if frameErr != nil {
 			b, _ := json.Marshal(openAIErrorResponse{Error: openAIError{Message: frameErr.Error(), Type: "api_error", Code: "stream_error"}})
-			fmt.Fprintf(w, "data: %s\n\n", b)
-			fmt.Fprint(w, "data: [DONE]\n\n")
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", b); err != nil {
+				return
+			}
+			if _, err := fmt.Fprint(w, "data: [DONE]\n\n"); err != nil {
+				return
+			}
 			flusher.Flush()
 			return
 		}
@@ -81,7 +87,9 @@ func writeSSE(w http.ResponseWriter, r *http.Request, frames sseFrameSource) {
 		if err != nil {
 			continue
 		}
-		fmt.Fprintf(w, "data: %s\n\n", b)
+		if _, err := fmt.Fprintf(w, "data: %s\n\n", b); err != nil {
+			return
+		}
 		flusher.Flush()
 	}
 }
