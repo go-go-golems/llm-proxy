@@ -36,12 +36,15 @@ RelatedFiles:
       Note: Revised simple prototype design responding to scope correction
     - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/design-doc/03-simple-geppetto-engine-openai-completions-proxy-prototype.md
       Note: Completions-first copy/adaptation preserving the Responses design
+    - Path: llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/02-research-logbook.md
+      Note: Research resource usefulness/outdatedness logbook created for the ticket
 ExternalSources: []
 Summary: Chronological diary for creating the OpenAI-compatible llm-proxy docmgr ticket, evidence-backed design, and delivery bundle.
 LastUpdated: 2026-06-04T19:45:00-04:00
 WhatFor: Use this to understand how the design doc was produced, what evidence was gathered, and what remains to validate during implementation.
 WhenToUse: Read before continuing the llm-proxy implementation or reviewing the design decisions.
 ---
+
 
 
 
@@ -1164,3 +1167,147 @@ The final validation passed in both workspace mode and `GOWORK=off`, and `docmgr
 
 - Final test result: all package tests passed.
 - Final docmgr result: `✅ All checks passed`.
+
+## Step 14: Create and deliver the research logbook
+
+This step created a dedicated research logbook for the ticket. The logbook summarizes the documents, source resources, and external API references consulted or cited while designing and implementing the `/v1/completions` prototype, and explicitly marks which resources are current, superseded, deferred, or need refresh.
+
+The logbook is intended to prevent future confusion between the superseded broad design, the deferred Responses design, and the current Completions-first implementation. It also records concrete update priorities, such as verifying OpenAI Completions compatibility details and Geppetto profile credential expansion.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Create a research logbook document in the ticket that allows us to keep track of which resources    
+ are useful / out of date / need updating .                                                          
+                                                                                                     
+ For all the documents and external resources you read, list:                                        
+                                                                                                     
+ - what you were researching                                                                         
+ - what you were looking for in this document in particular                                          
+ - why you chose it
+ - how you found the resource itself
+ - what you found useful in the document                                                             
+ - what you didn't find useful                                                                       
+ - what is out of date / what was wrong                                                              
+ - what would need updating.                                                                         
+                                                                                                     
+ Store in ticket and upload to remarkable."
+
+**Assistant interpretation:** Add a new ticket document that tracks the usefulness, staleness, and update needs of all read/cited resources, then upload it to reMarkable.
+
+**Inferred user intent:** Make the evidence base maintainable so future work can distinguish authoritative/current resources from outdated background material.
+
+### What I did
+
+- Created a new reference document:
+  - `docmgr doc add --ticket 2026-06-04-llm-proxy-openai-compatible-geppetto-proxy --doc-type reference --title "Research logbook"`
+- Wrote the logbook at:
+  - `/home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/02-research-logbook.md`
+- Related key files to the logbook with `docmgr doc relate`.
+- Updated the changelog.
+
+### Why
+
+- Several design documents now coexist in the ticket, and not all are current.
+- Future implementers need a quick way to see which resources should be trusted, which should be refreshed, and which are historical only.
+
+### What worked
+
+- The logbook now includes entries for current design docs, superseded design docs, Geppetto profile/engine/event/turn resources, process references, and external API references.
+- It distinguishes “not directly read” external references from resources actually inspected during the session.
+
+### What didn't work
+
+- N/A during document creation.
+
+### What I learned
+
+- The most important update priorities are OpenAI Completions compatibility details, profile credential expansion, and error classification.
+
+### What was tricky to build
+
+- The tricky part was being precise about external API resources: some API URLs were cited in design docs but not fetched/read directly in this session, so the logbook marks them as `not directly read` and `needs refresh` rather than overstating certainty.
+
+### What warrants a second pair of eyes
+
+- Review whether any source files read during implementation should be split into more granular logbook entries.
+- Confirm whether the external API docs should be fetched and summarized in a follow-up pass before compatibility hardening.
+
+### What should be done in the future
+
+- Keep the logbook updated when new resources are read.
+- Re-read the external OpenAI Completions docs before relaxing request validation or adding optional field compatibility.
+
+### Code review instructions
+
+- Review `reference/02-research-logbook.md` for resource status and update priorities.
+- Cross-check current implementation authority: design doc 03 plus source code under `pkg/openaicompletions`, `pkg/profiles`, `pkg/runtime`, and `pkg/server`.
+
+### Technical details
+
+- New logbook path: `/home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/02-research-logbook.md`
+
+## Step 15: Upload the research logbook to reMarkable
+
+This step delivered the research logbook as a standalone PDF to reMarkable. The upload used the same ticket folder as the prior design deliverables so the logbook sits alongside the broad design bundle and the standalone simplified design.
+
+The remote listing now includes `2026-06-05 llm-proxy research logbook`.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 14)
+
+**Assistant interpretation:** Upload the newly created research logbook to reMarkable.
+
+**Inferred user intent:** Make the resource/status logbook available for offline review on the reMarkable device/cloud.
+
+### What I did
+
+- Ran `remarquee status` and `remarquee cloud account --non-interactive`.
+- Ran a dry-run single-document bundle upload for `reference/02-research-logbook.md`.
+- Uploaded the standalone PDF with:
+  - `remarquee upload bundle reference/02-research-logbook.md --name "2026-06-05 llm-proxy research logbook" --remote-dir "/ai/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy" --toc-depth 2`
+- Verified remote listing with:
+  - `remarquee cloud ls /ai/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy --long --non-interactive`
+
+### Why
+
+- The user explicitly requested storing the logbook in the ticket and uploading it to reMarkable.
+
+### What worked
+
+- `remarquee: ok`.
+- Dry-run showed only `reference/02-research-logbook.md` would be included.
+- Upload completed with:
+  - `OK: uploaded 2026-06-05 llm-proxy research logbook.pdf -> /ai/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy`
+- Remote listing included:
+  - `[f]	2026-06-05 llm-proxy research logbook`
+
+### What didn't work
+
+- N/A.
+
+### What I learned
+
+- Standalone single-document bundle upload is suitable for reference documents as well as design docs.
+
+### What was tricky to build
+
+- N/A. Upload was straightforward.
+
+### What warrants a second pair of eyes
+
+- Confirm whether the reMarkable folder should keep both superseded designs and current logbook together, or whether superseded designs should be moved/renamed later.
+
+### What should be done in the future
+
+- Re-upload the logbook after meaningful updates to the resource status list.
+
+### Code review instructions
+
+- Verify local content in `reference/02-research-logbook.md`.
+- Verify remote delivery with `remarquee cloud ls /ai/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy --long --non-interactive`.
+
+### Technical details
+
+- Remote path: `/ai/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy`
+- Remote file: `2026-06-05 llm-proxy research logbook`
