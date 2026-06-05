@@ -119,3 +119,15 @@ Phase 3: wired non-streaming /v1/completions to Geppetto RunInferenceWithResult
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/runtime/completion_service.go — Geppetto-backed non-streaming completion flow
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/01-investigation-diary.md — Recorded Phase 3 implementation
 
+
+## 2026-06-04
+
+Phase 4: added streaming /v1/completions bridge from Geppetto text events to SSE chunks
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/openaicompletions/stream.go — EventTextDelta to Completions stream frame translation
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/runtime/completion_service.go — Streaming inference goroutine and event-sink attachment
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/server/sse.go — SSE writer for Completions chunks
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/01-investigation-diary.md — Recorded Phase 4 implementation
+

@@ -907,3 +907,95 @@ The implementation still keeps streaming disabled at the HTTP handler. Streaming
   - `pkg/runtime/completion_service_test.go`
 - Modified file:
   - `cmd/llm-proxy-server/main.go`
+
+## Step 11: Implement Phase 4 streaming Completions bridge
+
+This step added streaming support for `/v1/completions`. A request with `stream: true` now uses a channel-backed Geppetto `events.EventSink`; Geppetto `EventTextDelta` events become OpenAI `text_completion` SSE chunks, and successful streams end with an empty final chunk carrying `finish_reason` followed by `data: [DONE]`.
+
+The server keeps `http.ResponseWriter` ownership in the handler goroutine. The Geppetto inference goroutine only publishes frames to a channel, which avoids concurrent writes to the HTTP response.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 7)
+
+**Assistant interpretation:** Continue phase-by-phase implementation by adding streaming SSE support for the Completions prototype.
+
+**Inferred user intent:** The prototype should support both non-streaming and streaming OpenAI Completions clients using Geppetto's event stream.
+
+### What I did
+
+- Added `pkg/openaicompletions/stream.go`:
+  - `CompletionStreamFrame`
+  - completion ID helper
+  - delta/final frame constructors
+  - `CompletionEventSink` translating `EventTextDelta`
+- Added `pkg/openaicompletions/stream_test.go`.
+- Added `pkg/server/sse.go` with an SSE writer that serializes frames and emits `[DONE]`.
+- Extended `pkg/server/server.go` with `StreamingCompletionService` detection for `stream: true`.
+- Extended `pkg/runtime/completion_service.go` with `Stream`:
+  - resolves profile,
+  - creates engine,
+  - maps request to turn,
+  - attaches the event sink with `events.WithEventSinks`,
+  - runs `RunInferenceWithResult` in a goroutine,
+  - emits final frame after inference returns.
+- Added runtime and server streaming tests.
+- Ran:
+  - `cd llm-proxy && go test ./... -count=1`
+  - `cd llm-proxy && GOWORK=off go test ./... -count=1`
+
+### Why
+
+- Geppetto engines already publish canonical events during inference. The proxy should translate those events rather than implementing provider-specific streaming itself.
+- Streaming is required for OpenAI-compatible clients that expect incremental `data:` chunks.
+
+### What worked
+
+- Workspace and `GOWORK=off` tests passed.
+- The event sink test confirms `EventTextDelta` becomes a text chunk.
+- The runtime streaming test confirms fake Geppetto deltas are surfaced and a final finish chunk is emitted.
+- The server SSE test confirms the handler returns `data:` frames and `[DONE]`.
+
+### What didn't work
+
+- N/A. Streaming tests passed after implementation.
+
+### What I learned
+
+- The simplest reliable stream contract is: translate only text deltas during inference, then emit one final finish chunk after `RunInferenceWithResult` returns.
+- This avoids duplicate final chunks from both `EventTextSegmentFinished` and the inference result.
+
+### What was tricky to build
+
+- The key concurrency invariant is that only the handler goroutine writes to `http.ResponseWriter`. The event sink writes to a buffered channel and returns quickly so it does not block provider inference under normal streaming speed.
+- The channel closes after the inference goroutine returns; the SSE writer treats channel close as `[DONE]` unless an explicit `Done`/error frame already ended the stream.
+
+### What warrants a second pair of eyes
+
+- Review channel buffering and backpressure. A slow client can eventually block the Geppetto inference goroutine through the channel.
+- Review stream error shape. The current stream error emits a JSON error object as an SSE data frame and then `[DONE]`.
+- Confirm whether final usage should be included in streaming chunks later; legacy Completions streaming usually does not include usage.
+
+### What should be done in the future
+
+- Phase 5 should add examples and smoke-test docs.
+- Later, add request overrides for `max_tokens`, `temperature`, `top_p`, and `stop`.
+
+### Code review instructions
+
+- Start in `pkg/openaicompletions/stream.go` for event-to-frame translation.
+- Review `pkg/runtime/completion_service.go` for goroutine and event-sink flow.
+- Review `pkg/server/sse.go` to ensure only the handler writes SSE data.
+- Validate with `cd llm-proxy && go test ./... -count=1` and `cd llm-proxy && GOWORK=off go test ./... -count=1`.
+
+### Technical details
+
+- New files:
+  - `pkg/openaicompletions/stream.go`
+  - `pkg/openaicompletions/stream_test.go`
+  - `pkg/server/sse.go`
+- Modified files:
+  - `pkg/runtime/completion_service.go`
+  - `pkg/runtime/completion_service_test.go`
+  - `pkg/server/server.go`
+  - `pkg/server/server_test.go`

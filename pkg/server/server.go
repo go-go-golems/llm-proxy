@@ -13,6 +13,10 @@ type CompletionService interface {
 	Complete(ctx context.Context, req *openaicompletions.CompletionRequest) (*openaicompletions.CompletionResponse, error)
 }
 
+type StreamingCompletionService interface {
+	Stream(ctx context.Context, req *openaicompletions.CompletionRequest) (<-chan openaicompletions.CompletionStreamFrame, error)
+}
+
 type ModelLister interface {
 	ListModels(ctx context.Context) ([]ModelDescriptor, error)
 }
@@ -80,7 +84,17 @@ func (s *Server) handleCompletions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Stream {
-		writeOpenAIError(w, http.StatusBadRequest, openaicompletions.FieldError{Field: "stream", Message: "streaming is not implemented yet", Code: "stream_not_implemented"})
+		streamer, ok := s.completionService.(StreamingCompletionService)
+		if !ok {
+			writeOpenAIError(w, http.StatusBadRequest, openaicompletions.FieldError{Field: "stream", Message: "streaming is not implemented yet", Code: "stream_not_implemented"})
+			return
+		}
+		frames, err := streamer.Stream(r.Context(), req)
+		if err != nil {
+			writeOpenAIError(w, http.StatusInternalServerError, err)
+			return
+		}
+		s.writeCompletionSSE(w, r, frames)
 		return
 	}
 	resp, err := s.completionService.Complete(r.Context(), req)

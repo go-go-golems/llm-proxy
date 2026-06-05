@@ -42,11 +42,11 @@
 
 ### Phase 4: Streaming Completions bridge
 
-- [ ] Add a channel-backed `events.EventSink` for a single request.
-- [ ] Translate Geppetto `EventTextDelta` into OpenAI `text_completion` SSE chunks.
-- [ ] Emit a final empty chunk with finish reason and `data: [DONE]` on success.
-- [ ] Ensure the HTTP handler goroutine is the only goroutine writing to `http.ResponseWriter`.
-- [ ] Add fake-engine streaming tests for text deltas, final chunks, and engine errors.
+- [x] Add a channel-backed `events.EventSink` for a single request.
+- [x] Translate Geppetto `EventTextDelta` into OpenAI `text_completion` SSE chunks.
+- [x] Emit a final empty chunk with finish reason and `data: [DONE]` on success.
+- [x] Ensure the HTTP handler goroutine is the only goroutine writing to `http.ResponseWriter`.
+- [x] Add fake-engine streaming tests for text deltas, final chunks, and engine errors.
 
 ### Phase 5: Prototype polish and documentation
 
