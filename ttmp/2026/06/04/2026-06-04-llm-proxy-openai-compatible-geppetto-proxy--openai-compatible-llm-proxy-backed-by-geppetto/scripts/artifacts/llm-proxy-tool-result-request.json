@@ -1,0 +1,50 @@
+{
+  "model": "groq-oss-20b",
+  "messages": [
+    {
+      "role": "user",
+      "content": "You must call the lookup_weather function for city Paris. Do not answer directly."
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "fc_f557b6c9-0e51-42b8-afca-0abe9f8cff24",
+          "type": "function",
+          "function": {
+            "name": "lookup_weather",
+            "arguments": "{\"city\":\"Paris\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "fc_f557b6c9-0e51-42b8-afca-0abe9f8cff24",
+      "content": "{\"city\":\"Paris\",\"condition\":\"sunny\",\"temperature_c\":21}"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "lookup_weather",
+        "description": "Look up the current weather for a city.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "city"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
+  "stream": false
+}

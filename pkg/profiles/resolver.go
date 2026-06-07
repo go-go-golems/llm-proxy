@@ -68,10 +68,18 @@ func (r *GeppettoResolver) ResolveProfile(ctx context.Context, slug string) (*Re
 	if err != nil {
 		return nil, err
 	}
+	baseSettings, err := settings.NewInferenceSettings()
+	if err != nil {
+		return nil, err
+	}
+	finalSettings, err := gepprofiles.MergeInferenceSettings(baseSettings, resolved.InferenceSettings)
+	if err != nil {
+		return nil, fmt.Errorf("merge profile %q with base inference settings: %w", slug, err)
+	}
 	return &ResolvedProfileRuntime{
 		RegistrySlug: resolved.RegistrySlug.String(),
 		ProfileSlug:  resolved.EngineProfileSlug.String(),
-		Settings:     resolved.InferenceSettings,
+		Settings:     finalSettings,
 		Metadata:     resolved.Metadata,
 	}, nil
 }

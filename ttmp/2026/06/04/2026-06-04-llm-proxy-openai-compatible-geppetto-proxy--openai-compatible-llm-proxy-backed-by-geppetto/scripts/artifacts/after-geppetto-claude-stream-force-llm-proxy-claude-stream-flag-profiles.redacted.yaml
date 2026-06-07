@@ -1,0 +1,32 @@
+slug: default
+profiles:
+  anthropic-stream-false:
+    inference_settings:
+      chat:
+        api_type: claude
+        engine: claude-haiku-4-5
+        max_response_tokens: 4096
+        stream: false
+      api:
+        api_keys:
+          claude-api-key: <redacted>
+        base_urls:
+          claude-base-url: https://api.anthropic.com
+      client:
+        timeout: 60
+      claude: {}
+  anthropic-stream-true:
+    inference_settings:
+      chat:
+        api_type: claude
+        engine: claude-haiku-4-5
+        max_response_tokens: 4096
+        stream: true
+      api:
+        api_keys:
+          claude-api-key: <redacted>
+        base_urls:
+          claude-base-url: https://api.anthropic.com
+      client:
+        timeout: 60
+      claude: {}

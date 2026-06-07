@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-go-golems/geppetto/pkg/events"
 	"github.com/go-go-golems/geppetto/pkg/inference/engine"
+	geppettotools "github.com/go-go-golems/geppetto/pkg/inference/tools"
 	"github.com/go-go-golems/geppetto/pkg/turns"
 	"github.com/go-go-golems/llm-proxy/pkg/openaichat"
 )
@@ -34,15 +35,21 @@ func TestGeppettoChatCompletionServiceComplete(t *testing.T) {
 	}
 }
 
-type chatToolEngine struct{}
+type chatToolEngine struct {
+	t *testing.T
+}
 
-func (chatToolEngine) RunInference(_ context.Context, t *turns.Turn) (*turns.Turn, error) {
+func (e chatToolEngine) RunInference(ctx context.Context, t *turns.Turn) (*turns.Turn, error) {
+	defs := geppettotools.AdvertisedToolDefinitionsFromContext(ctx)
+	if len(defs) != 1 || defs[0].Name != "lookup" {
+		e.t.Fatalf("advertised tool definitions = %#v", defs)
+	}
 	turns.AppendBlock(t, turns.NewToolCallBlock("call_1", "lookup", map[string]any{"q": "x"}))
 	return t, nil
 }
 
 func TestGeppettoChatCompletionServiceCompleteToolCall(t *testing.T) {
-	svc := &GeppettoChatCompletionService{Profiles: fakeProfileResolver{}, Engines: fakeEngineProvider{eng: chatToolEngine{}}}
+	svc := &GeppettoChatCompletionService{Profiles: fakeProfileResolver{}, Engines: fakeEngineProvider{eng: chatToolEngine{t: t}}}
 	resp, err := svc.Complete(context.Background(), &openaichat.ChatCompletionRequest{
 		Model:    "sonnet",
 		Tools:    []openaichat.ChatTool{{Type: "function", Function: openaichat.ChatToolFunction{Name: "lookup", Parameters: map[string]any{"type": "object"}}}},

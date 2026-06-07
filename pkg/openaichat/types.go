@@ -26,6 +26,11 @@ type ChatMessage struct {
 	ToolCalls  []ChatToolCall  `json:"tool_calls,omitempty"`
 }
 
+type ChatContentImage struct {
+	URL    string
+	Detail string
+}
+
 type ChatTool struct {
 	Type     string           `json:"type"`
 	Function ChatToolFunction `json:"function"`
@@ -76,8 +81,12 @@ func DecodeChatCompletionRequest(r io.Reader) (*ChatCompletionRequest, error) {
 func (m ChatMessage) Validate(index int) error {
 	role := strings.TrimSpace(m.Role)
 	switch role {
-	case "system", "developer", "user":
+	case "system", "developer":
 		if _, err := m.RequiredContentString(index); err != nil {
+			return err
+		}
+	case "user":
+		if _, _, err := m.RequiredUserContent(index); err != nil {
 			return err
 		}
 	case "assistant":
@@ -125,9 +134,119 @@ func (m ChatMessage) ContentString() (string, error) {
 	}
 	var arr []json.RawMessage
 	if err := json.Unmarshal(m.Content, &arr); err == nil {
-		return "", FieldError{Field: "content", Message: "message content arrays are not supported in this prototype", Code: "unsupported_content_shape"}
+		return "", FieldError{Field: "content", Message: "message content arrays are supported only for user messages", Code: "unsupported_content_shape"}
 	}
 	return "", FieldError{Field: "content", Message: "message content must be a string", Code: "unsupported_content_shape"}
+}
+
+func (m ChatMessage) RequiredUserContent(index int) (string, []ChatContentImage, error) {
+	if len(m.Content) == 0 || string(m.Content) == "null" {
+		return "", nil, FieldError{Field: fmt.Sprintf("messages[%d].content", index), Message: "message content is required", Code: "missing_content"}
+	}
+	text, images, err := m.UserContent()
+	if err != nil {
+		return "", nil, withField(err, fmt.Sprintf("messages[%d].content", index))
+	}
+	if strings.TrimSpace(text) == "" && len(images) == 0 {
+		return "", nil, FieldError{Field: fmt.Sprintf("messages[%d].content", index), Message: "message content is required", Code: "missing_content"}
+	}
+	return text, images, nil
+}
+
+func (m ChatMessage) UserContent() (string, []ChatContentImage, error) {
+	var s string
+	if err := json.Unmarshal(m.Content, &s); err == nil {
+		return s, nil, nil
+	}
+	var arr []json.RawMessage
+	if err := json.Unmarshal(m.Content, &arr); err != nil {
+		return "", nil, FieldError{Field: "content", Message: "message content must be a string or content array", Code: "unsupported_content_shape"}
+	}
+	texts := make([]string, 0, len(arr))
+	images := make([]ChatContentImage, 0)
+	for i, raw := range arr {
+		var head struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal(raw, &head); err != nil {
+			return "", nil, FieldError{Field: fmt.Sprintf("content[%d]", i), Message: "content part must be an object", Code: "unsupported_content_part"}
+		}
+		switch strings.TrimSpace(head.Type) {
+		case "text":
+			var part struct {
+				Text string `json:"text"`
+			}
+			if err := json.Unmarshal(raw, &part); err != nil {
+				return "", nil, FieldError{Field: fmt.Sprintf("content[%d].text", i), Message: "text content part is invalid", Code: "invalid_content_part"}
+			}
+			if part.Text != "" {
+				texts = append(texts, part.Text)
+			}
+		case "image_url":
+			img, err := parseChatImageURLPart(raw, i)
+			if err != nil {
+				return "", nil, err
+			}
+			images = append(images, img)
+		default:
+			return "", nil, FieldError{Field: fmt.Sprintf("content[%d].type", i), Message: fmt.Sprintf("unsupported content part type %q", head.Type), Code: "unsupported_content_part"}
+		}
+	}
+	return strings.Join(texts, "\n"), images, nil
+}
+
+func parseChatImageURLPart(raw json.RawMessage, index int) (ChatContentImage, error) {
+	var holder map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &holder); err != nil {
+		return ChatContentImage{}, FieldError{Field: fmt.Sprintf("content[%d]", index), Message: "image_url content part is invalid", Code: "invalid_content_part"}
+	}
+	rawImageURL, ok := holder["image_url"]
+	if !ok || len(rawImageURL) == 0 || string(rawImageURL) == "null" {
+		return ChatContentImage{}, FieldError{Field: fmt.Sprintf("content[%d].image_url", index), Message: "image_url is required", Code: "missing_image_url"}
+	}
+	var url string
+	var detail string
+	if err := json.Unmarshal(rawImageURL, &url); err == nil {
+		url = strings.TrimSpace(url)
+	} else {
+		var obj struct {
+			URL    string `json:"url"`
+			Detail string `json:"detail"`
+		}
+		if err := json.Unmarshal(rawImageURL, &obj); err != nil {
+			return ChatContentImage{}, FieldError{Field: fmt.Sprintf("content[%d].image_url", index), Message: "image_url must be a string or object", Code: "invalid_image_url"}
+		}
+		url = strings.TrimSpace(obj.URL)
+		detail = strings.TrimSpace(obj.Detail)
+	}
+	if url == "" {
+		return ChatContentImage{}, FieldError{Field: fmt.Sprintf("content[%d].image_url.url", index), Message: "image_url URL is required", Code: "missing_image_url"}
+	}
+	return ChatContentImage{URL: url, Detail: detail}, nil
+}
+
+func (img ChatContentImage) ToTurnImageMap() map[string]any {
+	ret := map[string]any{"url": img.URL}
+	if img.Detail != "" {
+		ret["detail"] = img.Detail
+	}
+	if mediaType := mediaTypeFromDataURL(img.URL); mediaType != "" {
+		ret["media_type"] = mediaType
+	}
+	return ret
+}
+
+func mediaTypeFromDataURL(url string) string {
+	url = strings.TrimSpace(url)
+	if !strings.HasPrefix(url, "data:") {
+		return ""
+	}
+	rest := strings.TrimPrefix(url, "data:")
+	end := strings.IndexAny(rest, ";,")
+	if end <= 0 {
+		return ""
+	}
+	return rest[:end]
 }
 
 func (t ChatTool) Validate(index int) error {

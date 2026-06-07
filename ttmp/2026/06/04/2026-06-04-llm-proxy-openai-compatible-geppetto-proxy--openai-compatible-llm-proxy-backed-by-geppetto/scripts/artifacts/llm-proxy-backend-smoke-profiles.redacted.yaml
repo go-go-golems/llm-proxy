@@ -1,0 +1,42 @@
+slug: default
+profiles:
+  anthropic-haiku-smoke:
+    inference_settings:
+      chat:
+        api_type: claude
+        engine: claude-haiku-4-5
+        max_response_tokens: 4096
+      api:
+        api_keys:
+          claude-api-key: <redacted>
+        base_urls:
+          claude-base-url: https://api.anthropic.com
+      client:
+        timeout: 60
+      claude: {}
+  openai-responses-smoke:
+    inference_settings:
+      chat:
+        api_type: openai-responses
+        engine: gpt-5-nano
+        max_response_tokens: 4096
+      api:
+        api_keys:
+          openai-api-key: <redacted>
+      client:
+        timeout: 120
+      openai: {}
+  openai-chat-smoke:
+    inference_settings:
+      chat:
+        api_type: openai
+        engine: openai/gpt-oss-20b
+        max_response_tokens: 4096
+      api:
+        api_keys:
+          openai-api-key: <redacted>
+        base_urls:
+          openai-base-url: https://api.groq.com/openai/v1
+      client:
+        timeout: 60
+      openai: {}

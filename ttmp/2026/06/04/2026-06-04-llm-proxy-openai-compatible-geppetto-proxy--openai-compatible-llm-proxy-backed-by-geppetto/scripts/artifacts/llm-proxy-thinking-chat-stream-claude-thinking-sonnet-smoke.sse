@@ -1,0 +1,8 @@
+data: {"id":"chatcmpl_proxy_1780660695227081482","object":"chat.completion.chunk","created":1780660695,"model":"claude-thinking-sonnet-smoke","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl_proxy_1780660695227081482","object":"chat.completion.chunk","created":1780660695,"model":"claude-thinking-sonnet-smoke","choices":[{"index":0,"delta":{"content":"90 miles"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl_proxy_1780660695227081482","object":"chat.completion.chunk","created":1780660695,"model":"claude-thinking-sonnet-smoke","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]
+

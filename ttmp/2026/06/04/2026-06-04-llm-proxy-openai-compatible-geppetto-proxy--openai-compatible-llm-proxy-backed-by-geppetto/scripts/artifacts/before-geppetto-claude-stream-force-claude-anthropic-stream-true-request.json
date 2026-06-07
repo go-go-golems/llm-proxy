@@ -1,0 +1,10 @@
+{
+  "model": "anthropic-stream-true",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Reply with exactly: anthropic stream flag ok"
+    }
+  ],
+  "stream": false
+}

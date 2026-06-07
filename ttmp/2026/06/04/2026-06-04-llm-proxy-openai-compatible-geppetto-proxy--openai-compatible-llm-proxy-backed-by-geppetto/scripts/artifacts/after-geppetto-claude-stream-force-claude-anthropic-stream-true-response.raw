@@ -1,0 +1,3 @@
+{"id":"chatcmpl_proxy_1780658765472923219","object":"chat.completion","created":1780658765,"model":"anthropic-stream-true","choices":[{"index":0,"message":{"role":"assistant","content":"anthropic stream flag ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":16,"completion_tokens":8,"total_tokens":24}}
+
+HTTP_STATUS:200

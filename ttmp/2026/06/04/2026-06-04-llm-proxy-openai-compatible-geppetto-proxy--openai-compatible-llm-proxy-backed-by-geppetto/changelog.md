@@ -262,3 +262,91 @@ Annotated Pinocchio smoke-test diary with commit c9284d1
 
 - /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/01-investigation-diary.md — Commit hash for Pinocchio smoke-test diary
 
+
+## 2026-06-05
+
+Live tool-call smoke tested Chat Completions and fixed request tool advertisement plus duplicate streamed arguments
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/openaichat/stream.go — Streaming tool argument duplicate suppression
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/runtime/chat_service.go — Request tools now become a Geppetto context registry
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/reference/01-investigation-diary.md — Live tool-call smoke diary
+
+
+## 2026-06-05
+
+Archived live smoke-test scripts and non-secret JSON/SSE artifacts under ticket scripts/ for retraceability
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts — Smoke scripts and artifacts directory
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/00-smoke-test-artifacts.md — Artifact index and reproduction notes
+
+
+## 2026-06-05
+
+Renamed smoke artifact index to numbered docmgr-compatible markdown
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/00-smoke-test-artifacts.md — Artifact index and reproduction notes
+
+
+## 2026-06-05
+
+Fixed Anthropic Claude proxy no-response failure by forcing Geppetto Claude RunInference requests into streaming mode; all three backend tool-call smokes now pass (Geppetto commit fb2b9ed)
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/geppetto/pkg/steps/ai/claude/engine_claude.go — Claude streaming-mode fix
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/artifacts/backend-tool-smoke-summary-after-geppetto-claude-stream-force.json — All-provider smoke summary
+
+
+## 2026-06-05
+
+Marked live three-backend tool-call smoke task complete after final all-pass summary
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/tasks.md — Task 64 complete
+
+
+## 2026-06-05
+
+Captured official Anthropic and OpenAI reasoning/streaming docs with Defuddle under ticket sources/ before continuing thinking-stream implementation
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/sources — Official docs source archive
+
+
+## 2026-06-05
+
+Implemented Claude extended thinking stream parsing and validated Claude/OpenAI Responses thinking smokes through engine and proxy (Geppetto commit 6928c321)
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/geppetto/pkg/steps/ai/claude/content-block-merger.go — Claude thinking event mapping
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/ttmp/2026/06/04/2026-06-04-llm-proxy-openai-compatible-geppetto-proxy--openai-compatible-llm-proxy-backed-by-geppetto/scripts/artifacts/llm-proxy-thinking-smoke-summary-after-claude-thinking-fix.json — Direct engine thinking smoke evidence
+
+
+## 2026-06-05
+
+Fix profile resolver to merge sparse Geppetto profile overlays onto base settings; Gemini-backed proxy smokes pass
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/geppetto/ttmp/2026/06/05/2026-06-05-geppetto-gemini-api-polish--geppetto-gemini-api-polish-for-gemini-3-flash/scripts/artifacts/llm-proxy-gemini-smoke-summary.json — Gemini proxy smoke evidence
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/profiles/resolver.go — Profile resolver base merge fix
+
+
+## 2026-06-05
+
+Add regression test for sparse Geppetto profile overlays in llm-proxy resolver
+
+### Related Files
+
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/profiles/resolver.go — Resolver behavior under test
+- /home/manuel/workspaces/2026-06-04/llm-proxy/llm-proxy/pkg/profiles/resolver_test.go — Resolver regression test
+

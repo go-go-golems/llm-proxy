@@ -29,8 +29,19 @@ func (Mapper) RequestToTurn(req *ChatCompletionRequest) (*turns.Turn, error) {
 			text, _ := msg.ContentString()
 			turns.AppendBlock(t, turns.NewSystemTextBlock(text))
 		case "user":
-			text, _ := msg.ContentString()
-			turns.AppendBlock(t, turns.NewUserTextBlock(text))
+			text, images, err := msg.RequiredUserContent(i)
+			if err != nil {
+				return nil, err
+			}
+			if len(images) > 0 {
+				turnImages := make([]map[string]any, 0, len(images))
+				for _, image := range images {
+					turnImages = append(turnImages, image.ToTurnImageMap())
+				}
+				turns.AppendBlock(t, turns.NewUserMultimodalBlock(text, turnImages))
+			} else {
+				turns.AppendBlock(t, turns.NewUserTextBlock(text))
+			}
 		case "assistant":
 			if len(msg.Content) != 0 && string(msg.Content) != "null" {
 				text, _ := msg.ContentString()
