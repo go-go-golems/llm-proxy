@@ -1,4 +1,4 @@
-.PHONY: gifs logcopter-generate logcopter-check
+.PHONY: gifs logcopter-generate logcopter-check glazed-lint-build glazed-lint
 
 all: gifs
 
@@ -39,6 +39,23 @@ logcopter-generate:
 
 logcopter-check:
 	GOWORK=off go tool logcopter-gen -area-prefix go-go-golems.llm-proxy -strip-prefix github.com/go-go-golems/llm-proxy -check ./pkg/...
+
+GLAZED_LINT_BIN ?= /tmp/glazed-lint
+GLAZED_LINT_PKG ?= github.com/go-go-golems/glazed/cmd/tools/glazed-lint
+GLAZED_VERSION ?= v1.3.6
+
+glazed-lint-build:
+	@echo "Building glazed-lint from Glazed module..."
+	@if [ -n "$(GLAZED_VERSION)" ]; then \
+		echo "Installing $(GLAZED_LINT_PKG)@$(GLAZED_VERSION)"; \
+		GOBIN=$(dir $(GLAZED_LINT_BIN)) GOWORK=off go install $(GLAZED_LINT_PKG)@$(GLAZED_VERSION); \
+	else \
+		echo "Installing $(GLAZED_LINT_PKG) from workspace/module"; \
+		GOBIN=$(dir $(GLAZED_LINT_BIN)) GOWORK=off go install $(GLAZED_LINT_PKG); \
+	fi
+
+glazed-lint: glazed-lint-build
+	GOWORK=off go vet -vettool=$(GLAZED_LINT_BIN) ./cmd/... ./pkg/...
 
 goreleaser:
 	GOWORK=off goreleaser release $(GORELEASER_ARGS) $(GORELEASER_TARGET)

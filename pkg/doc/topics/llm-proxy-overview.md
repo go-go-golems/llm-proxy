@@ -8,6 +8,7 @@ Topics:
 - geppetto
 Commands:
 - llm-proxy-server
+- llm-proxy-server serve
 Flags:
 - listen
 - profiles
@@ -21,13 +22,14 @@ SectionType: GeneralTopic
 
 The main runtime flow is:
 
-1. Load optional profile YAML from `--profiles`.
-2. Build OpenAI-compatible model, completion, and chat-completion services from those profiles.
-3. Start an HTTP server on `--listen`.
-4. Serve `/healthz`, `/v1/models`, `/v1/completions`, and `/v1/chat/completions`.
+1. Run the Glazed-backed `serve` command.
+2. Load optional profile YAML from `--profiles`.
+3. Build OpenAI-compatible model, completion, and chat-completion services from those profiles.
+4. Start an HTTP server on `--listen`.
+5. Serve `/healthz`, `/v1/models`, `/v1/completions`, and `/v1/chat/completions`.
 
 Example:
 
 ```bash
-llm-proxy-server --profiles examples/profiles.yaml --listen 127.0.0.1:8080
+llm-proxy-server serve --profiles examples/profiles.yaml --listen 127.0.0.1:8080
 ```
