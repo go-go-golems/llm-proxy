@@ -71,7 +71,7 @@ tag-patch:
 
 release:
 	git push origin --tags
-	GOWORK=off GOPROXY=proxy.golang.org go list -m github.com/go-go-golems/XXX@$(shell svu current)
+	GOWORK=off GOPROXY=proxy.golang.org go list -m github.com/go-go-golems/llm-proxy@$(shell svu current)
 
 bump-go-go-golems:
 	@deps="$$(awk '/^require[[:space:]]+github\.com\/go-go-golems\// { print $$2 } /^[[:space:]]*github\.com\/go-go-golems\// { print $$1 }' go.mod | sort -u)"; \
@@ -84,7 +84,7 @@ bump-go-go-golems:
 	fi
 	GOWORK=off go mod tidy
 
-XXX_BINARY=$(shell which XXX)
+LLM_PROXY_SERVER_BINARY=$(shell which llm-proxy-server)
 install:
-	GOWORK=off go build -o ./dist/XXX ./cmd/XXX && \
-		cp ./dist/XXX $(XXX_BINARY)
+	GOWORK=off go build -o ./dist/llm-proxy-server ./cmd/llm-proxy-server && \
+		cp ./dist/llm-proxy-server $(LLM_PROXY_SERVER_BINARY)
