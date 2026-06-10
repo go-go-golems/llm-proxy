@@ -2,27 +2,66 @@ package main
 
 import (
 	"context"
-	"flag"
 	"log"
 	"net/http"
 	"time"
 
+	"github.com/go-go-golems/glazed/pkg/cmds/logging"
+	"github.com/go-go-golems/glazed/pkg/help"
+	help_cmd "github.com/go-go-golems/glazed/pkg/help/cmd"
+	llmproxydoc "github.com/go-go-golems/llm-proxy/pkg/doc"
 	profilespkg "github.com/go-go-golems/llm-proxy/pkg/profiles"
 	runtimepkg "github.com/go-go-golems/llm-proxy/pkg/runtime"
 	"github.com/go-go-golems/llm-proxy/pkg/server"
+	"github.com/spf13/cobra"
 )
 
+type serverOptions struct {
+	listen   string
+	profiles string
+}
+
 func main() {
-	listen := flag.String("listen", "127.0.0.1:8080", "address to listen on")
-	profiles := flag.String("profiles", "", "path to Geppetto profile YAML (used in later phases)")
-	flag.Parse()
+	rootCmd := newRootCommand()
+	if err := rootCmd.Execute(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func newRootCommand() *cobra.Command {
+	opts := &serverOptions{}
+	rootCmd := &cobra.Command{
+		Use:   "llm-proxy-server",
+		Short: "Serve an OpenAI-compatible HTTP API backed by Geppetto profiles",
+		Long: `llm-proxy-server exposes OpenAI-compatible model, completion, and chat-completion endpoints.
+
+Provider setup lives in Geppetto profile YAML. Without a profiles file the server still exposes health checks and static stub responses, which is useful for smoke tests and local wiring.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runServer(cmd.Context(), opts)
+		},
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return logging.InitLoggerFromCobra(cmd)
+		},
+	}
+	rootCmd.Flags().StringVar(&opts.listen, "listen", "127.0.0.1:8080", "address to listen on")
+	rootCmd.Flags().StringVar(&opts.profiles, "profiles", "", "path to Geppetto profile YAML")
+	cobra.CheckErr(logging.AddLoggingSectionToRootCommand(rootCmd, "llm-proxy"))
+
+	helpSystem := help.NewHelpSystem()
+	cobra.CheckErr(llmproxydoc.AddDocToHelpSystem(helpSystem))
+	help_cmd.SetupCobraRootCommand(helpSystem, rootCmd)
+
+	return rootCmd
+}
+
+func runServer(ctx context.Context, opts *serverOptions) error {
 	var modelLister server.ModelLister
 	var completionService server.CompletionService
 	var chatCompletionService server.ChatCompletionService
-	if *profiles != "" {
-		resolver, err := profilespkg.NewYAMLResolver(*profiles)
+	if opts.profiles != "" {
+		resolver, err := profilespkg.NewYAMLResolver(opts.profiles)
 		if err != nil {
-			log.Fatalf("load profiles: %v", err)
+			return err
 		}
 		modelLister = profileModelLister{resolver: resolver}
 		completionService = &runtimepkg.GeppettoCompletionService{Profiles: resolver}
@@ -31,16 +70,23 @@ func main() {
 
 	srv := server.New(server.Options{CompletionService: completionService, ChatCompletionService: chatCompletionService, ModelLister: modelLister})
 	httpServer := &http.Server{
-		Addr:              *listen,
+		Addr:              opts.listen,
 		Handler:           srv.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
-	log.Printf("llm-proxy-server listening on %s", *listen)
-	if err := httpServer.ListenAndServe(); err != nil {
-		log.Fatal(err)
+	log.Printf("llm-proxy-server listening on %s", opts.listen)
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = httpServer.Shutdown(shutdownCtx)
+	}()
+	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return err
 	}
+	return nil
 }
 
 type profileModelLister struct {
