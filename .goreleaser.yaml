@@ -1,5 +1,5 @@
 version: 2
-project_name: XXX
+project_name: llm-proxy
 
 before:
   hooks:
@@ -8,7 +8,7 @@ before:
     # you may remove this if you don't need go generate
     - go generate ./...
 builds:
-  - id: XXX-linux
+  - id: llm-proxy-server-linux
     env:
       - CGO_ENABLED=1
       - CC_linux_amd64=gcc
@@ -17,8 +17,8 @@ builds:
       - CXX_linux_arm64=aarch64-linux-gnu-g++
       - 'CC={{ index .Env (print "CC_" .Os "_" .Arch) }}'
       - 'CXX={{ index .Env (print "CXX_" .Os "_" .Arch) }}'
-    main: ./cmd/XXX
-    binary: XXX
+    main: ./cmd/llm-proxy-server
+    binary: llm-proxy-server
     goos:
       - linux
 # I am not able to test windows at the time
@@ -26,11 +26,11 @@ builds:
     goarch:
       - amd64
       - arm64
-  - id: XXX-darwin
+  - id: llm-proxy-server-darwin
     env:
       - CGO_ENABLED=1
-    main: ./cmd/XXX
-    binary: XXX
+    main: ./cmd/llm-proxy-server
+    binary: llm-proxy-server
     goos:
       - darwin
     goarch:
@@ -53,9 +53,9 @@ signs:
     args: [ "--batch", "-u", "{{ .Env.GPG_FINGERPRINT }}", "--output", "${signature}", "--detach-sign", "${artifact}" ]
 
 brews:
-  - name: XXX
-    description: "XXX is a tool"
-    homepage: "https://github.com/go-go-golems/XXX"
+  - name: llm-proxy-server
+    description: "llm-proxy-server exposes OpenAI-compatible chat and completions endpoints backed by Geppetto profiles"
+    homepage: "https://github.com/go-go-golems/llm-proxy"
     repository:
       owner: go-go-golems
       name: homebrew-go-go-go
@@ -70,7 +70,7 @@ nfpms:
     maintainer: Manuel Odendahl <wesen@ruinwesen.com>
 
     description: |-
-      XXX is a tool
+      llm-proxy-server exposes OpenAI-compatible chat and completions endpoints backed by Geppetto profiles
 
     license: MIT
 
