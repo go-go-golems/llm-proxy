@@ -139,7 +139,7 @@ func runServer(ctx context.Context, opts *ServeSettings) error {
 	log.Printf("llm-proxy-server listening on %s", opts.Listen)
 	go func() {
 		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 		_ = httpServer.Shutdown(shutdownCtx)
 	}()
