@@ -7,7 +7,7 @@ Provider setup lives entirely in Geppetto profile YAML — no proxy-side API key
 ## Quick start
 
 ```bash
-go run ./cmd/llm-proxy-server \
+go run ./cmd/llm-proxy-server serve \
   --profiles examples/profiles.yaml \
   --listen 127.0.0.1:8080
 ```
