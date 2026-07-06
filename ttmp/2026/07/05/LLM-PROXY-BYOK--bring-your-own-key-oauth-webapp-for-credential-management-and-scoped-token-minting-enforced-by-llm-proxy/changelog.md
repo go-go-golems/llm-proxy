@@ -27,3 +27,33 @@ Wrote the full intern guide (design-doc/02): threat model, llm-proxy internals w
 
 Uploaded the intern guide + architecture proposal bundle to reMarkable at /ai/2026/07/05/LLM-PROXY-BYOK (LLM-PROXY-BYOK Intern Design Guide.pdf).
 
+
+## 2026-07-05
+
+Step 1 / Phase 0: BYOK store layer with SQLite and memory backends, conformance-tested (commit ba0fb4c).
+
+### Related Files
+
+- /home/manuel/workspaces/2026-07-05/llm-proxy-byok/llm-proxy/pkg/byok/store/sqlite/store.go — SQLite backend with DDL and transactional metering
+- /home/manuel/workspaces/2026-07-05/llm-proxy-byok/llm-proxy/pkg/byok/store/store.go — Store interfaces
+
+
+## 2026-07-05
+
+Step 2 / Phase 1: bearer-token enforcement middleware, scoped model listing, OpenAI-shaped auth errors, byok CLI (user/token), --byok-db wiring; live curl smoke passed (commit e6b3b1f).
+
+### Related Files
+
+- /home/manuel/workspaces/2026-07-05/llm-proxy-byok/llm-proxy/cmd/llm-proxy-server/byok.go — BYOK CLI command group
+- /home/manuel/workspaces/2026-07-05/llm-proxy-byok/llm-proxy/pkg/byok/authmw/middleware.go — TokenAuth middleware
+
+
+## 2026-07-05
+
+Step 3 / Phase 2: AES-GCM vault, VaultEngineProvider key injection with scrubbing, UsageRecorder metering incl. streaming, credential CLI, in-process end-to-end test (commit 388cb6d).
+
+### Related Files
+
+- /home/manuel/workspaces/2026-07-05/llm-proxy-byok/llm-proxy/pkg/byok/engines/provider.go — Per-request credential injection
+- /home/manuel/workspaces/2026-07-05/llm-proxy-byok/llm-proxy/pkg/byok/integration_test.go — CI-runnable end-to-end test
+
