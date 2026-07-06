@@ -473,3 +473,92 @@ The local fake provider remains only an HTTP server implementing the OpenAI-comp
 - Required dependency: `github.com/go-go-golems/geppetto v0.13.4`.
 - Fake provider endpoint: `/v1/chat/completions`.
 - Fake usage: 12 prompt tokens + 7 completion tokens = 19 total per accepted call.
+
+## Step 8: Address BYOK PR code-review findings and GoSec failure
+
+After the Geppetto-backed integration test was pushed, PR #5 still had one failing GitHub check and several automated review comments. I treated the GoSec failure and the P1 data-plane configuration bypass as merge-blocking, then addressed the concrete P2 issues in the same pass because they were small and testable.
+
+The resulting changes keep local development ergonomics while making the production behavior fail closed: BYOK now requires profiles, OpenAI Responses receives the key name Geppetto expects, return redirects are restricted to local paths, and per-token dispatch is serialized so request-count budgets cannot be bypassed by simultaneous requests on a single proxy node.
+
+### Prompt Context
+
+**User prompt (verbatim):** "go ahead. Keep a detailed diary as you work, commit at appropriate intervals"
+
+**Assistant interpretation:** Implement the outstanding llm-proxy PR review items, keep a detailed implementation diary, validate locally, and commit the work in sensible increments.
+
+**Inferred user intent:** Get PR #5 back to a mergeable state by resolving CI/security/code-review feedback while preserving a continuation-friendly record of what changed and why.
+
+**Commit (code):** 04570f7 — "fix: address BYOK review findings"
+
+### What I did
+- Hardened OIDC `return_to` handling in `pkg/byok/web/oidc.go`:
+  - accepts only local absolute-path references,
+  - rejects absolute URLs,
+  - rejects protocol-relative URLs,
+  - rejects backslash variants such as `/\\evil.example` that can be normalized by clients/proxies.
+- Added `pkg/byok/web/oidc_test.go` coverage for valid local paths and rejected redirect shapes.
+- Added targeted GoSec suppressions with rationale for:
+  - scheme-derived `Secure` on local-development-compatible session/OIDC cookies (`G124`),
+  - the final redirect after `sanitizeReturnTo` (`G710`).
+- Rejected `--byok-db` without `--profiles` in `cmd/llm-proxy-server/main.go`, preventing token auth from wrapping static stub services that do not perform credential injection, scoped model enforcement, or metering.
+- Added `cmd/llm-proxy-server/main_test.go` asserting that invalid configuration fails before binding a server.
+- Added `apiKeyNameForAPIType` in `pkg/byok/engines/provider.go` so `open-responses` and `openai-responses` inject the user's key into `openai-api-key` instead of deriving a literal `open-responses-api-key` slot.
+- Added `TestOpenAIResponsesUsesOpenAIKeySlot` in `pkg/byok/engines/provider_test.go`.
+- Added per-token dispatch locks in `pkg/byok/authmw/ratelimit.go` and used them in `TokenAuth` so budget preflight and downstream inference/usage recording are serialized per token.
+- Added `TestTokenAuthSerializesRequestBudgetThroughDispatch`, which starts two concurrent requests for a token with `max_requests=1` and expects exactly one success plus one `429` budget rejection.
+
+### Why
+- GoSec was the only failing GitHub check on PR #5.
+- The P1 review identified a real fail-open mode: BYOK auth could be enabled without profiles, leaving requests authenticated but not BYOK-enforced by the runtime services.
+- The OpenAI Responses key-slot comment was cheap to address and avoids depending on alias behavior across Geppetto providers.
+- Request budgets are meant to be caps; allowing concurrent requests to all pass preflight before usage recording undermines that contract on the single-node proxy.
+
+### What worked
+- Focused tests passed:
+  - `GOWORK=off go test ./cmd/llm-proxy-server ./pkg/byok/authmw ./pkg/byok/engines ./pkg/byok/web`
+- Full tests passed:
+  - `GOWORK=off go test ./...`
+- Local GoSec with the CI exclusions passed with zero issues:
+  - `gosec -exclude=G101,G304,G301,G306,G204 -exclude-dir=.history ./...`
+
+### What didn't work
+- The first GoSec rerun still reported `G710` on `http.Redirect(w, r, returnTo, http.StatusFound)` even after strengthening `sanitizeReturnTo`:
+  - `pkg/byok/web/oidc.go:194 - G710 (CWE): Open redirect via taint analysis`
+- I kept the stricter sanitizer and added a narrowly scoped `#nosec G710` on the redirect with an explanation that `returnTo` is restricted to a local absolute path and falls back to `/app`.
+
+### What I learned
+- GoSec's cookie rule does not accept scheme-derived `Secure: isSecureRequest(r)` even when `HttpOnly` and `SameSite` are set; a targeted suppression is needed if local HTTP development must keep working.
+- The Geppetto OpenAI Responses provider accepts aliases, but `openai-api-key` is the safest BYOK injection slot because it matches the existing OpenAI profile examples and provider family.
+
+### What was tricky to build
+- The budget-concurrency fix needed to preserve existing usage-recording semantics. The store records usage after inference completes, so the simplest correct single-node fix is to hold a per-token lock across `next.ServeHTTP`; this ensures the next request does not read stale counters before the previous request has recorded usage.
+- The tradeoff is intentional per-token serialization. Different tokens can still run concurrently, but parallel requests sharing one minted token are serialized through budget preflight and dispatch.
+
+### What warrants a second pair of eyes
+- The `#nosec G124` choice keeps HTTP localhost development working. A stricter production-only deployment might instead force `Secure: true` or add explicit trusted-proxy/public-URL cookie policy.
+- The per-token lock map currently grows with token IDs seen by the process, matching the existing rate-limiter pattern. If the proxy handles very high churn of one-shot tokens, cleanup or store-backed reservations would be better.
+- The dispatch lock is single-process only. Multi-node deployments still need store-backed atomic reservations or distributed locking to enforce request budgets globally.
+
+### What should be done in the future
+- Add a hardening follow-up for distributed/multi-node budget reservations if llm-proxy runs horizontally.
+- Consider an explicit cookie security mode that forces Secure cookies in production while preserving local HTTP behavior for `--byok-dev-user` demos.
+
+### Code review instructions
+- Start with the review-comment files:
+  - `cmd/llm-proxy-server/main.go` for the fail-closed BYOK/profile validation.
+  - `pkg/byok/web/oidc.go` and `pkg/byok/web/session.go` for redirect/cookie security changes.
+  - `pkg/byok/engines/provider.go` for key-slot mapping.
+  - `pkg/byok/authmw/middleware.go` and `pkg/byok/authmw/ratelimit.go` for per-token dispatch serialization.
+- Review tests alongside each change:
+  - `cmd/llm-proxy-server/main_test.go`
+  - `pkg/byok/web/oidc_test.go`
+  - `pkg/byok/engines/provider_test.go`
+  - `pkg/byok/authmw/middleware_test.go`
+- Validate with:
+  - `GOWORK=off go test ./...`
+  - `gosec -exclude=G101,G304,G301,G306,G204 -exclude-dir=.history ./...`
+
+### Technical details
+- GoSec result after suppressions: `Issues : 0`, `Nosec : 5`.
+- Per-token serialization is implemented as an in-process `TokenLocks` map keyed by token ID.
+- OpenAI Responses API types mapped to `openai-api-key`: `open-responses`, `openai-responses`.

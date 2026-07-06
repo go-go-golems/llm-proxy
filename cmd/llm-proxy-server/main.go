@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"time"
@@ -185,6 +186,10 @@ func (c *ServeCommand) Run(ctx context.Context, parsedValues *values.Values) err
 }
 
 func runServer(ctx context.Context, opts *ServeSettings) error {
+	if opts.ByokDB != "" && opts.Profiles == "" {
+		return errors.New("--byok-db requires --profiles so BYOK requests use credential injection, model scoping, and usage metering")
+	}
+
 	var byokStore byokstorepkg.Store
 	var byokVault *vault.Vault
 	var engineProvider runtimepkg.EngineProvider

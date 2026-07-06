@@ -65,6 +65,9 @@ func randomToken() (string, error) {
 }
 
 func setShortCookie(w http.ResponseWriter, r *http.Request, name, value string) {
+	// #nosec G124 -- Secure is derived from the inbound scheme so local HTTP
+	// development continues to work; production deployments must serve the
+	// public control-plane URL over HTTPS.
 	http.SetCookie(w, &http.Cookie{
 		Name: name, Value: value, Path: "/",
 		HttpOnly: true, SameSite: http.SameSiteLaxMode,
@@ -73,6 +76,8 @@ func setShortCookie(w http.ResponseWriter, r *http.Request, name, value string) 
 }
 
 func clearShortCookie(w http.ResponseWriter, r *http.Request, name string) {
+	// #nosec G124 -- clearing mirrors the cookie attributes used when setting
+	// the short-lived OIDC cookie, including scheme-derived Secure.
 	http.SetCookie(w, &http.Cookie{
 		Name: name, Value: "", Path: "/",
 		HttpOnly: true, SameSite: http.SameSiteLaxMode,
@@ -80,12 +85,14 @@ func clearShortCookie(w http.ResponseWriter, r *http.Request, name string) {
 	})
 }
 
-// sanitizeReturnTo rejects absolute and protocol-relative URLs (open redirect).
+// sanitizeReturnTo accepts only local absolute-path references. It rejects
+// absolute URLs, protocol-relative URLs, and backslash variants that some
+// clients/proxies normalize into protocol-relative redirects.
 func sanitizeReturnTo(raw string) string {
-	if raw == "" || !strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "//") {
+	if raw == "" || !strings.HasPrefix(raw, "/") || len(raw) > 1 && (raw[1] == '/' || raw[1] == '\\') || strings.Contains(raw, "\\") {
 		return "/app"
 	}
-	if u, err := url.Parse(raw); err != nil || u.Host != "" || u.Scheme != "" {
+	if u, err := url.Parse(raw); err != nil || u.Host != "" || u.Scheme != "" || !strings.HasPrefix(u.Path, "/") {
 		return "/app"
 	}
 	return raw
@@ -184,6 +191,8 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(returnToCookie); err == nil {
 		returnTo = sanitizeReturnTo(c.Value)
 	}
+	// #nosec G710 -- returnTo is restricted by sanitizeReturnTo to a local
+	// absolute path and falls back to /app for absolute/protocol-relative URLs.
 	http.Redirect(w, r, returnTo, http.StatusFound)
 }
 

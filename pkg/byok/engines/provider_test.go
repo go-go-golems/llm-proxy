@@ -50,6 +50,19 @@ func claudeProfile(t *testing.T, slug string) *profiles.ResolvedProfileRuntime {
 	return &profiles.ResolvedProfileRuntime{ProfileSlug: slug, Settings: s}
 }
 
+func openAIResponsesProfile(t *testing.T, slug string) *profiles.ResolvedProfileRuntime {
+	t.Helper()
+	s, err := settings.NewInferenceSettings()
+	if err != nil {
+		t.Fatalf("settings: %v", err)
+	}
+	apiType := types.ApiTypeOpenResponses
+	s.Chat.ApiType = &apiType
+	s.API.APIKeys["openai-api-key"] = "server-side-openai-key"
+	s.API.APIKeys["open-responses-api-key"] = "server-side-responses-key"
+	return &profiles.ResolvedProfileRuntime{ProfileSlug: slug, Settings: s}
+}
+
 type fixture struct {
 	provider *byokengines.VaultEngineProvider
 	inner    *capturingProvider
@@ -133,6 +146,24 @@ func TestOriginalSettingsNotMutated(t *testing.T) {
 	}
 	if original.Settings.API.APIKeys["claude-api-key"] != "server-side-yaml-key" {
 		t.Fatal("resolver-owned settings were mutated in place")
+	}
+}
+
+func TestOpenAIResponsesUsesOpenAIKeySlot(t *testing.T) {
+	f := setup(t, []string{"gpt-responses"}, "open-responses")
+	eng, err := f.provider.EngineForProfile(f.ctx, openAIResponsesProfile(t, "gpt-responses"))
+	if err != nil || eng == nil {
+		t.Fatalf("engine: %v", err)
+	}
+	keys := f.inner.got.Settings.API.APIKeys
+	if keys["openai-api-key"] != "sk-ant-users-own-key" {
+		t.Fatalf("user key not injected into OpenAI key slot: %q", keys["openai-api-key"])
+	}
+	if _, ok := keys["open-responses-api-key"]; ok {
+		t.Fatal("server-side OpenAI Responses key survived scrubbing")
+	}
+	if len(keys) != 1 {
+		t.Fatalf("expected exactly one key after injection, got %v", keys)
 	}
 }
 

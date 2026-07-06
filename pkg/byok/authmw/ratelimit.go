@@ -41,3 +41,28 @@ func (l *RateLimiter) Allow(tokenID string, rpm *int64, now time.Time) bool {
 	w.count++
 	return true
 }
+
+// TokenLocks serializes dispatch for a single token. Budget checks depend on
+// counters that are updated after inference finishes, so requests for the same
+// token must not all pass the preflight check concurrently.
+type TokenLocks struct {
+	mu    sync.Mutex
+	locks map[string]*sync.Mutex
+}
+
+func NewTokenLocks() *TokenLocks {
+	return &TokenLocks{locks: map[string]*sync.Mutex{}}
+}
+
+func (l *TokenLocks) Lock(tokenID string) func() {
+	l.mu.Lock()
+	lock, ok := l.locks[tokenID]
+	if !ok {
+		lock = &sync.Mutex{}
+		l.locks[tokenID] = lock
+	}
+	l.mu.Unlock()
+
+	lock.Lock()
+	return lock.Unlock
+}

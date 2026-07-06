@@ -23,6 +23,7 @@ import (
 // Other paths (e.g. /healthz, control plane) pass through untouched.
 func TokenAuth(st store.Store, next http.Handler) http.Handler {
 	limiter := NewRateLimiter()
+	dispatchLocks := NewTokenLocks()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.URL.Path, "/v1/") {
 			next.ServeHTTP(w, r)
@@ -50,6 +51,8 @@ func TokenAuth(st store.Store, next http.Handler) http.Handler {
 			writeAPIError(w, apiErr)
 			return
 		}
+		unlock := dispatchLocks.Lock(tok.ID)
+		defer unlock()
 		if !limiter.Allow(tok.ID, tok.RateLimitRPM, now) {
 			apiErr := apierr.NewRateLimited(*tok.RateLimitRPM)
 			rejected(r.Context(), st, tok, apiErr)

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -172,6 +173,66 @@ func TestTokenAuthRequestBudgetAndRateLimit(t *testing.T) {
 	}
 	if w := do(t, h, "/v1/completions", "llmp_other"); w.Code != 429 || !strings.Contains(w.Body.String(), "rate_limit_exceeded") {
 		t.Fatalf("rate limit not enforced: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestTokenAuthSerializesRequestBudgetThroughDispatch(t *testing.T) {
+	st := memory.New()
+	maxReq := int64(1)
+	raw, _ := setupToken(t, st, func(tk *store.Token) { tk.MaxRequests = &maxReq })
+
+	entered := make(chan struct{}, 2)
+	release := make(chan struct{})
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		entered <- struct{}{}
+		<-release
+		tok, ok := authmw.TokenFrom(r.Context())
+		if !ok {
+			t.Errorf("token missing from context")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if err := st.RecordUsage(r.Context(), store.LedgerEntry{
+			TokenID: tok.ID, UserID: tok.UserID, Model: "sonnet", Status: store.LedgerStatusOK,
+		}); err != nil {
+			t.Errorf("record usage: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+	h := authmw.TokenAuth(st, inner)
+
+	type result struct{ code int }
+	results := make(chan result, 2)
+	run := func() {
+		w := do(t, h, "/v1/completions", raw)
+		results <- result{code: w.Code}
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() { defer wg.Done(); run() }()
+	<-entered
+	go func() { defer wg.Done(); run() }()
+	time.Sleep(25 * time.Millisecond)
+	close(release)
+	wg.Wait()
+	close(results)
+
+	var okCount, rejectedCount int
+	for r := range results {
+		switch r.code {
+		case http.StatusOK:
+			okCount++
+		case http.StatusTooManyRequests:
+			rejectedCount++
+		default:
+			t.Fatalf("unexpected status %d", r.code)
+		}
+	}
+	if okCount != 1 || rejectedCount != 1 {
+		t.Fatalf("expected one accepted request and one budget rejection, got ok=%d rejected=%d", okCount, rejectedCount)
 	}
 }
 

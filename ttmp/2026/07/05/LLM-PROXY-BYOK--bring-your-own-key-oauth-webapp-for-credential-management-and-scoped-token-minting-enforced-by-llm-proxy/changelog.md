@@ -95,3 +95,16 @@ Step 7: replaced custom fake EngineWithResult BYOK integration test with real Ge
 - /home/manuel/workspaces/2026-07-05/llm-proxy-byok/llm-proxy/go.mod — Geppetto bumped to v0.13.4 for AllowHTTP/AllowLocalNetworks profile opt-ins
 - /home/manuel/workspaces/2026-07-05/llm-proxy-byok/llm-proxy/pkg/byok/integration_test.go — BYOK end-to-end test now uses real Geppetto factory/provider HTTP/SSE path
 
+
+## 2026-07-06
+
+Step 8: addressed PR #5 review findings: hardened OIDC return redirects, documented GoSec cookie/redirect suppressions, rejected BYOK without profiles, mapped OpenAI Responses BYOK keys to openai-api-key, and serialized per-token budget dispatch; GOWORK=off go test ./... and local GoSec pass.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-07-05/llm-proxy-byok/llm-proxy/cmd/llm-proxy-server/main.go — BYOK now requires profiles to avoid authenticated static-stub bypass
+- /home/manuel/workspaces/2026-07-05/llm-proxy-byok/llm-proxy/pkg/byok/authmw/middleware.go — Per-token dispatch serialization around budget checks and usage recording
+- /home/manuel/workspaces/2026-07-05/llm-proxy-byok/llm-proxy/pkg/byok/engines/provider.go — OpenAI Responses BYOK key slot mapping
+- /home/manuel/workspaces/2026-07-05/llm-proxy-byok/llm-proxy/pkg/byok/web/oidc.go — Return redirect sanitizer and GoSec redirect rationale
+- /home/manuel/workspaces/2026-07-05/llm-proxy-byok/llm-proxy/pkg/byok/web/session.go — Session cookie GoSec rationale for scheme-derived Secure
+

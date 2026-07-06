@@ -92,6 +92,9 @@ func (c *SessionCodec) SetCookie(w http.ResponseWriter, r *http.Request, claims 
 	if err != nil {
 		return err
 	}
+	// #nosec G124 -- Secure is derived from the inbound scheme so local HTTP
+	// development continues to work; production deployments must serve the
+	// public control-plane URL over HTTPS.
 	http.SetCookie(w, &http.Cookie{
 		Name: SessionCookieName, Value: value, Path: "/",
 		HttpOnly: true, SameSite: http.SameSiteLaxMode,
@@ -102,6 +105,8 @@ func (c *SessionCodec) SetCookie(w http.ResponseWriter, r *http.Request, claims 
 }
 
 func ClearCookie(w http.ResponseWriter, r *http.Request) {
+	// #nosec G124 -- clearing mirrors the cookie attributes used when setting
+	// the session cookie, including scheme-derived Secure.
 	http.SetCookie(w, &http.Cookie{
 		Name: SessionCookieName, Value: "", Path: "/",
 		HttpOnly: true, SameSite: http.SameSiteLaxMode,

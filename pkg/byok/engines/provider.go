@@ -8,6 +8,7 @@ import (
 	"context"
 
 	"github.com/go-go-golems/geppetto/pkg/inference/engine"
+	ai_types "github.com/go-go-golems/geppetto/pkg/steps/ai/types"
 	"github.com/pkg/errors"
 
 	"github.com/go-go-golems/llm-proxy/pkg/byok/apierr"
@@ -65,8 +66,9 @@ func (p *VaultEngineProvider) EngineForProfile(ctx context.Context, profile *pro
 		return nil, errors.New("byok: cloned settings have no API section")
 	}
 	// Replace, never merge: server-side YAML/env keys must not subsidize
-	// BYOK callers, so every other key is scrubbed.
-	settings.API.APIKeys = map[string]string{apiType + "-api-key": string(key)}
+	// BYOK callers, so every other key is scrubbed. Some Geppetto engines use a
+	// provider-family key slot rather than the literal api_type value.
+	settings.API.APIKeys = map[string]string{apiKeyNameForAPIType(apiType): string(key)}
 	if settings.Chat != nil && settings.Chat.APIKeys != nil {
 		settings.Chat.APIKeys = map[string]string{}
 	}
@@ -118,4 +120,13 @@ func profileAPIType(p *profiles.ResolvedProfileRuntime) string {
 		return string(*p.Settings.Chat.ApiType)
 	}
 	return ""
+}
+
+func apiKeyNameForAPIType(apiType string) string {
+	switch apiType {
+	case string(ai_types.ApiTypeOpenResponses), string(ai_types.ApiTypeOpenAIResponses):
+		return string(ai_types.ApiTypeOpenAI) + "-api-key"
+	default:
+		return apiType + "-api-key"
+	}
 }
