@@ -15,6 +15,7 @@ type GeppettoCompletionService struct {
 	Profiles profiles.ProfileResolver
 	Engines  EngineProvider
 	Mapper   openaicompletions.Mapper
+	Usage    UsageRecorder
 }
 
 func (s *GeppettoCompletionService) Complete(ctx context.Context, req *openaicompletions.CompletionRequest) (*openaicompletions.CompletionResponse, error) {
@@ -39,6 +40,9 @@ func (s *GeppettoCompletionService) Complete(ctx context.Context, req *openaicom
 	}
 	preBlockCount := len(turn.Blocks)
 	out, result, err := geppettoengine.RunInferenceWithResult(ctx, eng, turn)
+	if s.Usage != nil {
+		s.Usage.RecordInference(ctx, req.Model, usageFrom(result), false, err)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("run inference for profile %q: %w", req.Model, err)
 	}
@@ -73,6 +77,9 @@ func (s *GeppettoCompletionService) Stream(ctx context.Context, req *openaicompl
 	go func() {
 		defer close(frames)
 		_, result, err := geppettoengine.RunInferenceWithResult(runCtx, eng, turn)
+		if s.Usage != nil {
+			s.Usage.RecordInference(ctx, req.Model, usageFrom(result), true, err)
+		}
 		if err != nil {
 			frames <- openaicompletions.CompletionStreamFrame{Err: fmt.Errorf("run inference for profile %q: %w", req.Model, err)}
 			return

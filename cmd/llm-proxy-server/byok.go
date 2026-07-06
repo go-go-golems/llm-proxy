@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -12,7 +13,21 @@ import (
 	"github.com/go-go-golems/llm-proxy/pkg/byok/store"
 	"github.com/go-go-golems/llm-proxy/pkg/byok/store/sqlite"
 	"github.com/go-go-golems/llm-proxy/pkg/byok/tokens"
+	"github.com/go-go-golems/llm-proxy/pkg/byok/vault"
 )
+
+// masterKeyEnv is the fallback source for the vault master key.
+const masterKeyEnv = "LLM_PROXY_BYOK_MASTER_KEY"
+
+func openVault(masterKey string) (*vault.Vault, error) {
+	if masterKey == "" {
+		masterKey = os.Getenv(masterKeyEnv)
+	}
+	if masterKey == "" {
+		return nil, errors.Errorf("no master key: pass --master-key or set %s (generate one with 'byok keygen')", masterKeyEnv)
+	}
+	return vault.NewFromBase64(masterKey)
+}
 
 // newByokCommand groups the BYOK management CLI: users, tokens, and (in the
 // vault commands) credentials. These are operator/dev utilities; the control
@@ -233,7 +248,146 @@ func newByokCommand() *cobra.Command {
 	tokenRevokeCmd.Flags().StringVar(&revokeID, "id", "", "Token ID")
 
 	tokenCmd.AddCommand(tokenMintCmd, tokenListCmd, tokenRevokeCmd)
-	byokCmd.AddCommand(userCmd, tokenCmd)
+
+	// --- keygen ---
+	keygenCmd := &cobra.Command{
+		Use:   "keygen",
+		Short: "Generate a vault master key (base64)",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			key, err := vault.GenerateKeyBase64()
+			if err != nil {
+				return err
+			}
+			cmd.Printf("%s\n", key)
+			cmd.PrintErrf("store this securely and pass it via --byok-master-key or %s\n", masterKeyEnv)
+			return nil
+		},
+	}
+
+	// --- credential commands ---
+	credCmd := &cobra.Command{Use: "credential", Short: "Manage vault credentials (provider API keys)"}
+	var masterKey string
+	credCmd.PersistentFlags().StringVar(&masterKey, "master-key", "", "Vault master key (base64; default $"+masterKeyEnv+")")
+
+	var credUser, credProvider, credAPIType, credLabel, credSecretEnv string
+	credAddCmd := &cobra.Command{
+		Use:   "add",
+		Short: "Store a provider API key, encrypted at rest",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if credUser == "" || credProvider == "" || credAPIType == "" || credSecretEnv == "" {
+				return errors.New("--user, --provider, --api-type, and --secret-env are required")
+			}
+			secret := os.Getenv(credSecretEnv)
+			if secret == "" {
+				return errors.Errorf("environment variable %s is empty; secrets are read from the environment to keep them out of shell history", credSecretEnv)
+			}
+			v, err := openVault(masterKey)
+			if err != nil {
+				return err
+			}
+			st, err := openStore()
+			if err != nil {
+				return err
+			}
+			defer func() { _ = st.Close() }()
+			u, err := st.GetUserByUsername(cmd.Context(), credUser)
+			if err != nil {
+				return errors.Wrapf(err, "user %q", credUser)
+			}
+			credID := store.NewID()
+			cipherBlob, err := v.Encrypt(credID, []byte(secret))
+			if err != nil {
+				return err
+			}
+			label := credLabel
+			if label == "" {
+				label = credProvider
+			}
+			cred, err := st.CreateCredential(cmd.Context(), store.Credential{
+				ID: credID, UserID: u.ID, Provider: credProvider, APIType: credAPIType,
+				Label: label, SecretCipher: cipherBlob, SecretLast4: vault.Last4(secret),
+			})
+			if err != nil {
+				return err
+			}
+			_ = st.AppendEvent(cmd.Context(), store.AuditEvent{
+				UserID: u.ID, EventType: "credential.created",
+				Payload: []byte(fmt.Sprintf(`{"credential_id":%q,"provider":%q}`, cred.ID, credProvider)),
+			})
+			cmd.Printf("credential %s stored for %s (%s, %s)\n", cred.ID, u.Username, credProvider, cred.SecretLast4)
+			return nil
+		},
+	}
+	credAddCmd.Flags().StringVar(&credUser, "user", "", "Owner username")
+	credAddCmd.Flags().StringVar(&credProvider, "provider", "", "Provider name (anthropic, openai, ...)")
+	credAddCmd.Flags().StringVar(&credAPIType, "api-type", "", "Geppetto api-type (claude, openai, ...)")
+	credAddCmd.Flags().StringVar(&credLabel, "label", "", "Display label")
+	credAddCmd.Flags().StringVar(&credSecretEnv, "secret-env", "", "Name of the environment variable holding the API key")
+
+	var credListUser string
+	credListCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List a user's credentials (never shows secrets)",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if credListUser == "" {
+				return errors.New("--user is required")
+			}
+			st, err := openStore()
+			if err != nil {
+				return err
+			}
+			defer func() { _ = st.Close() }()
+			u, err := st.GetUserByUsername(cmd.Context(), credListUser)
+			if err != nil {
+				return errors.Wrapf(err, "user %q", credListUser)
+			}
+			creds, err := st.ListCredentialsByUser(cmd.Context(), u.ID)
+			if err != nil {
+				return err
+			}
+			tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', 0)
+			fmt.Fprintln(tw, "ID\tPROVIDER\tAPI_TYPE\tLABEL\tSECRET\tDISABLED")
+			for _, c := range creds {
+				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%t\n", c.ID, c.Provider, c.APIType, c.Label, c.SecretLast4, c.Disabled)
+			}
+			return tw.Flush()
+		},
+	}
+	credListCmd.Flags().StringVar(&credListUser, "user", "", "Owner username")
+
+	var credRmUser, credRmID string
+	credRmCmd := &cobra.Command{
+		Use:   "rm",
+		Short: "Delete a credential (revokes tokens bound only to it)",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if credRmUser == "" || credRmID == "" {
+				return errors.New("--user and --id are required")
+			}
+			st, err := openStore()
+			if err != nil {
+				return err
+			}
+			defer func() { _ = st.Close() }()
+			u, err := st.GetUserByUsername(cmd.Context(), credRmUser)
+			if err != nil {
+				return errors.Wrapf(err, "user %q", credRmUser)
+			}
+			if err := st.DeleteCredential(cmd.Context(), u.ID, credRmID); err != nil {
+				return err
+			}
+			_ = st.AppendEvent(cmd.Context(), store.AuditEvent{
+				UserID: u.ID, EventType: "credential.deleted",
+				Payload: []byte(fmt.Sprintf(`{"credential_id":%q}`, credRmID)),
+			})
+			cmd.Printf("credential %s deleted\n", credRmID)
+			return nil
+		},
+	}
+	credRmCmd.Flags().StringVar(&credRmUser, "user", "", "Owner username")
+	credRmCmd.Flags().StringVar(&credRmID, "id", "", "Credential ID")
+
+	credCmd.AddCommand(credAddCmd, credListCmd, credRmCmd)
+	byokCmd.AddCommand(userCmd, tokenCmd, credCmd, keygenCmd)
 	return byokCmd
 }
 

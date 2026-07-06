@@ -15,6 +15,8 @@ import (
 	"github.com/go-go-golems/glazed/pkg/help"
 	help_cmd "github.com/go-go-golems/glazed/pkg/help/cmd"
 	"github.com/go-go-golems/llm-proxy/pkg/byok/authmw"
+	byokengines "github.com/go-go-golems/llm-proxy/pkg/byok/engines"
+	byokmeter "github.com/go-go-golems/llm-proxy/pkg/byok/meter"
 	byokstorepkg "github.com/go-go-golems/llm-proxy/pkg/byok/store"
 	byoksqlite "github.com/go-go-golems/llm-proxy/pkg/byok/store/sqlite"
 	llmproxydoc "github.com/go-go-golems/llm-proxy/pkg/doc"
@@ -29,9 +31,10 @@ type ServeCommand struct {
 }
 
 type ServeSettings struct {
-	Listen   string `glazed:"listen"`
-	Profiles string `glazed:"profiles"`
-	ByokDB   string `glazed:"byok-db"`
+	Listen        string `glazed:"listen"`
+	Profiles      string `glazed:"profiles"`
+	ByokDB        string `glazed:"byok-db"`
+	ByokMasterKey string `glazed:"byok-master-key"`
 }
 
 func main() {
@@ -110,6 +113,12 @@ Examples:
 				fields.WithDefault(""),
 				fields.WithHelp("Path to the BYOK SQLite database; enables bearer-token enforcement on /v1/*"),
 			),
+			fields.New(
+				"byok-master-key",
+				fields.TypeString,
+				fields.WithDefault(""),
+				fields.WithHelp("Vault master key (base64); default $"+masterKeyEnv),
+			),
 		),
 		cmds.WithSections(commandSettingsSection),
 	)
@@ -126,6 +135,27 @@ func (c *ServeCommand) Run(ctx context.Context, parsedValues *values.Values) err
 }
 
 func runServer(ctx context.Context, opts *ServeSettings) error {
+	var byokStore byokstorepkg.Store
+	var engineProvider runtimepkg.EngineProvider
+	var usageRecorder runtimepkg.UsageRecorder
+	if opts.ByokDB != "" {
+		st, err := byoksqlite.Open(opts.ByokDB)
+		if err != nil {
+			return err
+		}
+		byokStore = st
+		defer func() { _ = st.Close() }()
+		v, err := openVault(opts.ByokMasterKey)
+		if err != nil {
+			return err
+		}
+		engineProvider = &byokengines.VaultEngineProvider{Vault: v, Store: st}
+		usageRecorder = &byokmeter.Recorder{Store: st}
+		log.Printf("BYOK enforcement enabled (db %s): per-user credentials, scoped models, metering", opts.ByokDB)
+	} else {
+		log.Printf("WARNING: BYOK disabled — /v1/* is unauthenticated (pass --byok-db to enable)")
+	}
+
 	var modelLister server.ModelLister
 	var completionService server.CompletionService
 	var chatCompletionService server.ChatCompletionService
@@ -135,22 +165,11 @@ func runServer(ctx context.Context, opts *ServeSettings) error {
 			return err
 		}
 		modelLister = profileModelLister{resolver: resolver}
-		completionService = &runtimepkg.GeppettoCompletionService{Profiles: resolver}
-		chatCompletionService = &runtimepkg.GeppettoChatCompletionService{Profiles: resolver}
+		completionService = &runtimepkg.GeppettoCompletionService{Profiles: resolver, Engines: engineProvider, Usage: usageRecorder}
+		chatCompletionService = &runtimepkg.GeppettoChatCompletionService{Profiles: resolver, Engines: engineProvider, Usage: usageRecorder}
 	}
-
-	var byokStore byokstorepkg.Store
-	if opts.ByokDB != "" {
-		st, err := byoksqlite.Open(opts.ByokDB)
-		if err != nil {
-			return err
-		}
-		byokStore = st
-		defer func() { _ = st.Close() }()
+	if byokStore != nil {
 		modelLister = &authmw.ScopedModelLister{Inner: modelLister}
-		log.Printf("BYOK enforcement enabled (db %s)", opts.ByokDB)
-	} else {
-		log.Printf("WARNING: BYOK disabled — /v1/* is unauthenticated (pass --byok-db to enable)")
 	}
 
 	srv := server.New(server.Options{CompletionService: completionService, ChatCompletionService: chatCompletionService, ModelLister: modelLister})
