@@ -358,6 +358,52 @@ The user-facing half of BYOK now exists: the same llm-proxy binary serves a cont
 - Route table: `GET /login`, `GET /auth/callback`, `POST /logout`, `[GET /dev-login]`, `GET /app`, `GET /static/*`, `GET /api/me`, `GET|POST /api/credentials`, `DELETE /api/credentials/{id}`, `GET|POST /api/tokens`, `POST /api/tokens/{id}/revoke`, `GET /api/usage?token_id=&since=`.
 - New deps: `github.com/coreos/go-oidc/v3 v3.19.0`, `golang.org/x/oauth2 v0.36.0` (now direct).
 
+## Step 6: Project report to the vault; React-UI follow-up ticket queued
+
+Two bookkeeping deliverables closed out the day. First, a deep-dive technical report on the whole BYOK implementation was written to the go-go-parc Obsidian vault in textbook style and pushed (`Projects/2026/07/05/PROJ - LLM-Proxy BYOK - Credential Vault, Token Minting, and Metered Proxy Enforcement.md`, vault commit 1dfe403). Second, the user's queued request for a React web UI was captured as ticket **LLM-PROXY-BYOK-REACT-UI** with an expandable analysis/implementation guide.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Make a web UI that uses the react library for /home/manuel/workspaces/2026-07-03/improve-rag-evaluation-system/rag-evaluation-system (as npm package, not sure if it's published already) . This is for later once the core has been done, but remember it by creating a docmgr ticket and writing a small analysis / implementatino guide that canbe expanded later." — and — "Before you continue much further, to keep track of your progress: w write a detailed project report for the obsidian vault as a deep dive technical analysis blog post using a textbook writing style (no analogies, see skill). Commit and push the bsidian vault when done (go-go-parc vault)."
+
+**Assistant interpretation:** (1) Write and push a textbook-style deep-dive project report to the go-go-parc vault. (2) Create a future-work docmgr ticket for rebuilding the BYOK dashboard as a React app on the rag-evaluation-system's React library, with an analysis doc to expand later.
+
+**Inferred user intent:** Preserve the day's work as durable, readable documentation, and make sure the React-UI idea survives as a tracked ticket rather than a chat memory.
+
+**Commit (code):** vault 1dfe403 (go-go-parc); ttmp docs committed below.
+
+### What I did
+- Vault note: PROJ-style, textbook prose, mermaid architecture diagram, enforcement-chain walkthrough, the four integration bugs as a failure-modes section, commit table, open questions. Staged only the note; pushed to go-go-parc main.
+- Investigated the rag-evaluation-system repo: the React library is `@go-go-golems/rag-evaluation-site` (Widget-IR renderer + site shell; `packages/rag-evaluation-site/src/{widgets,app,cms,context,hooks}`), consumed by `web/` via React 19 + rtk-query + Vite + Tailwind 4. **Verified it IS published on npm: dist-tags.latest = 0.1.16**, matching the workspace version — settling the user's "not sure if it's published" question.
+- Created LLM-PROXY-BYOK-REACT-UI with design-doc/01 covering: package inventory, two consumption modes (Widget-IR-first vs component-first, with a recommendation to split by surface type), the exact `/api/*` surface the UI must cover incl. the CSRF/same-origin constraint on dev servers, an integration sketch (llm-proxy `web/` + go:generate embed), a 5-step plan, and open questions. 5 tasks added; doctor passes.
+
+### Why
+- The current vanilla-JS dashboard was scoped as a proof; the React rebuild deserves its own ticket so the BYOK core ticket can close cleanly.
+
+### What worked
+- `npm view` settled the publication question in one call; the reference consumer in `web/` gave the exact dependency stack to prescribe.
+
+### What didn't work
+- docmgr relativized the cross-workspace RelatedFiles path with the wrong depth (`../../../../../../../../2026-07-03/...` → doctor `missing_related_file`). Fixed by switching that entry to an absolute path; doctor green.
+
+### What I learned
+- `docmgr doc relate` cross-workspace paths are safer absolute; relative rewriting assumes paths under the repo.
+
+### What was tricky to build
+- Nothing structural; this step was investigation and documentation.
+
+### What warrants a second pair of eyes
+- The Widget-IR vs component-first recommendation in the React-UI guide is a judgment call to re-validate in the kickoff spike.
+
+### What should be done in the future
+- Start LLM-PROXY-BYOK-REACT-UI once the BYOK core settles (spike task first).
+
+### Code review instructions
+- Read `ttmp/2026/07/05/LLM-PROXY-BYOK-REACT-UI--…/design-doc/01-….md`; verify the API-surface section against `pkg/byok/web/api.go`.
+
+### Technical details
+- npm package: `@go-go-golems/rag-evaluation-site@0.1.16`, public, `sideEffects: ["**/*.css"]`, source `/home/manuel/workspaces/2026-07-03/improve-rag-evaluation-system/rag-evaluation-system/packages/rag-evaluation-site/`.
+
 ## Related
 
 - `../design-doc/01-byok-for-llm-proxy-prior-art-analysis-and-architecture-proposal.md`

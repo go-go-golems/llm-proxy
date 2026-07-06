@@ -17,6 +17,8 @@ topics:
       description: Security model, trust boundaries, and secret handling
     - slug: metering
       description: Usage metering, quotas, and rate limiting
+    - slug: frontend
+      description: Web frontend and UI work
 docTypes:
     - slug: index
       description: Ticket index document
