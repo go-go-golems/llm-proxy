@@ -80,3 +80,8 @@ Step 5 / Phase 3: control-plane webapp — OIDC RP (Keycloak dev compose under d
 
 Queued follow-up ticket LLM-PROXY-BYOK-REACT-UI: replace the vanilla-JS dashboard with a React app on @go-go-golems/rag-evaluation-site once the core settles.
 
+
+## 2026-07-05
+
+Task bookkeeping: Phase 3 complete; open questions resolved in design docs (single binary two planes; meter from result.Usage post-hoc; profile-slug scopes with globs; control plane lives in llm-proxy).
+
