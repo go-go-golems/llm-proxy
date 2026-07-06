@@ -14,6 +14,9 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/help"
 	help_cmd "github.com/go-go-golems/glazed/pkg/help/cmd"
+	"github.com/go-go-golems/llm-proxy/pkg/byok/authmw"
+	byokstorepkg "github.com/go-go-golems/llm-proxy/pkg/byok/store"
+	byoksqlite "github.com/go-go-golems/llm-proxy/pkg/byok/store/sqlite"
 	llmproxydoc "github.com/go-go-golems/llm-proxy/pkg/doc"
 	profilespkg "github.com/go-go-golems/llm-proxy/pkg/profiles"
 	runtimepkg "github.com/go-go-golems/llm-proxy/pkg/runtime"
@@ -28,6 +31,7 @@ type ServeCommand struct {
 type ServeSettings struct {
 	Listen   string `glazed:"listen"`
 	Profiles string `glazed:"profiles"`
+	ByokDB   string `glazed:"byok-db"`
 }
 
 func main() {
@@ -63,6 +67,7 @@ Provider setup lives in Geppetto profile YAML. Without a profiles file the serve
 	)
 	cobra.CheckErr(err)
 	rootCmd.AddCommand(serveCobraCmd)
+	rootCmd.AddCommand(newByokCommand())
 
 	return rootCmd
 }
@@ -99,6 +104,12 @@ Examples:
 				fields.WithDefault(""),
 				fields.WithHelp("Path to Geppetto profile YAML"),
 			),
+			fields.New(
+				"byok-db",
+				fields.TypeString,
+				fields.WithDefault(""),
+				fields.WithHelp("Path to the BYOK SQLite database; enables bearer-token enforcement on /v1/*"),
+			),
 		),
 		cmds.WithSections(commandSettingsSection),
 	)
@@ -128,10 +139,28 @@ func runServer(ctx context.Context, opts *ServeSettings) error {
 		chatCompletionService = &runtimepkg.GeppettoChatCompletionService{Profiles: resolver}
 	}
 
+	var byokStore byokstorepkg.Store
+	if opts.ByokDB != "" {
+		st, err := byoksqlite.Open(opts.ByokDB)
+		if err != nil {
+			return err
+		}
+		byokStore = st
+		defer func() { _ = st.Close() }()
+		modelLister = &authmw.ScopedModelLister{Inner: modelLister}
+		log.Printf("BYOK enforcement enabled (db %s)", opts.ByokDB)
+	} else {
+		log.Printf("WARNING: BYOK disabled — /v1/* is unauthenticated (pass --byok-db to enable)")
+	}
+
 	srv := server.New(server.Options{CompletionService: completionService, ChatCompletionService: chatCompletionService, ModelLister: modelLister})
+	handler := http.Handler(srv.Handler())
+	if byokStore != nil {
+		handler = authmw.TokenAuth(byokStore, handler)
+	}
 	httpServer := &http.Server{
 		Addr:              opts.Listen,
-		Handler:           srv.Handler(),
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       120 * time.Second,
