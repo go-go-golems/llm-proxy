@@ -488,7 +488,7 @@ The resulting changes keep local development ergonomics while making the product
 
 **Inferred user intent:** Get PR #5 back to a mergeable state by resolving CI/security/code-review feedback while preserving a continuation-friendly record of what changed and why.
 
-**Commit (code):** 04570f7 — "fix: address BYOK review findings"
+**Commit (code):** 3dcff7f — "fix: address BYOK review findings"
 
 ### What I did
 - Hardened OIDC `return_to` handling in `pkg/byok/web/oidc.go`:
