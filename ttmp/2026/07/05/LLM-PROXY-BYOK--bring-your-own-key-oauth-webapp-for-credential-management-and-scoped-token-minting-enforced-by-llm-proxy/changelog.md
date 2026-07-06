@@ -85,3 +85,13 @@ Queued follow-up ticket LLM-PROXY-BYOK-REACT-UI: replace the vanilla-JS dashboar
 
 Task bookkeeping: Phase 3 complete; open questions resolved in design docs (single binary two planes; meter from result.Usage post-hoc; profile-slug scopes with globs; control plane lives in llm-proxy).
 
+
+## 2026-07-06
+
+Step 7: replaced custom fake EngineWithResult BYOK integration test with real Geppetto OpenAI-compatible provider packaging backed by an httptest provider; bumped Geppetto to v0.13.4; GOWORK=off go test ./... passes.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-07-05/llm-proxy-byok/llm-proxy/go.mod — Geppetto bumped to v0.13.4 for AllowHTTP/AllowLocalNetworks profile opt-ins
+- /home/manuel/workspaces/2026-07-05/llm-proxy-byok/llm-proxy/pkg/byok/integration_test.go — BYOK end-to-end test now uses real Geppetto factory/provider HTTP/SSE path
+

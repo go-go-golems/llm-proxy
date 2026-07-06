@@ -6,7 +6,7 @@ toolchain go1.26.4
 
 require (
 	github.com/coreos/go-oidc/v3 v3.19.0
-	github.com/go-go-golems/geppetto v0.13.3
+	github.com/go-go-golems/geppetto v0.13.4
 	github.com/go-go-golems/glazed v1.3.6
 	github.com/go-go-golems/logcopter v0.1.0
 	github.com/invopop/jsonschema v0.13.0

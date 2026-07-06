@@ -408,3 +408,68 @@ Two bookkeeping deliverables closed out the day. First, a deep-dive technical re
 
 - `../design-doc/01-byok-for-llm-proxy-prior-art-analysis-and-architecture-proposal.md`
 - byok-host workspace: `/home/manuel/workspaces/2026-07-05/llm-proxy-byok/2026-04-17--byok-host/`
+
+## Step 7: Replace custom fake-engine BYOK test with real Geppetto provider packaging
+
+After Geppetto PR #386 was merged and tagged, the BYOK end-to-end test no longer needed its custom fake `EngineWithResult` path. I replaced that test seam with Geppetto's real OpenAI-compatible engine factory pointed at a local `httptest` provider, so the test now exercises the same provider packaging, outbound URL validation, SSE parser, and usage extraction path that production uses.
+
+The local fake provider remains only an HTTP server implementing the OpenAI-compatible `/v1/chat/completions` streaming wire protocol. It verifies the bearer key that reached the provider, requires `stream_options.include_usage=true`, emits a real SSE text chunk plus a final usage chunk, and then the existing BYOK assertions verify key injection, model rejection, budget crossing, ledger/counters, and revocation.
+
+### Prompt Context
+
+**User prompt (verbatim):** "we bumped geppetto and glazed. What's next?"
+
+**Assistant interpretation:** Now that Geppetto and Glazed dependencies have been bumped, verify that llm-proxy can use the merged Geppetto outbound URL opt-in and finish replacing the custom BYOK fake-engine test with a real Geppetto-backed test.
+
+**Inferred user intent:** Remove the temporary llm-proxy-only testing shortcut and make the BYOK integration test cover the actual Geppetto provider code path before pushing the PR branch.
+
+**Commit (code):** 0210e8f — "test: exercise BYOK through real Geppetto provider path"
+
+### What I did
+- Updated `go.mod` from `github.com/go-go-golems/geppetto v0.13.3` to `v0.13.4`, which contains Geppetto PR #386.
+- Replaced `pkg/byok/integration_test.go`'s custom `usageEngine` and `keyAssertingProvider` with a real `runtime.FactoryEngineProvider` via `VaultEngineProvider`'s default inner provider.
+- Added a local `httptest` OpenAI-compatible provider that:
+  - requires `Authorization: Bearer sk-fake-users-own-key`,
+  - requires streaming requests and `stream_options.include_usage=true`,
+  - emits real SSE chunks, including a final usage chunk with `prompt_tokens=12` and `completion_tokens=7`.
+- Kept the existing BYOK acceptance assertions: user key injection, server-side key scrubbing, model allowlist rejection with no provider call, budget crossing and 429 pre-check, ledger/counter math, and immediate revocation.
+
+### Why
+- The previous custom fake engine proved BYOK logic but bypassed Geppetto provider packaging. With Geppetto's local-provider URL opt-in available, the test can now cover the real factory-created OpenAI-compatible engine path.
+
+### What worked
+- `GOWORK=off go test ./pkg/byok -run TestEndToEndGeppettoKeyInjectionMeteringAndBudget -v` passed after bumping Geppetto to `v0.13.4`.
+- `GOWORK=off go test ./pkg/byok/... ./pkg/runtime/...` passed.
+- `GOWORK=off go test ./...` passed.
+
+### What didn't work
+- Before bumping Geppetto, `GOWORK=off` still used `v0.13.3` and failed to compile because `APISettings.AllowHTTP` and `APISettings.AllowLocalNetworks` did not exist yet:
+  - `pkg/byok/integration_test.go:122:8: s.API.AllowHTTP undefined`
+  - `pkg/byok/integration_test.go:123:8: s.API.AllowLocalNetworks undefined`
+- The fix was to update llm-proxy to `github.com/go-go-golems/geppetto v0.13.4` and run `GOWORK=off go mod tidy`.
+
+### What I learned
+- The Geppetto OpenAI-compatible engine always runs through the streaming path and asks for `stream_options.include_usage` unless the model name contains `mistral`; the fake provider intentionally asserts this to keep the BYOK metering path honest.
+- A local `httptest` provider is enough to exercise the real Geppetto HTTP/SSE/client code while keeping the test deterministic and CI-safe.
+
+### What was tricky to build
+- The main sharp edge was dependency timing. Workspace mode picked up the local Geppetto branch immediately, but `GOWORK=off` still used the released module. Since the llm-proxy PR validates with `GOWORK=off`, the test could only be committed after Geppetto was merged and tagged as `v0.13.4`.
+
+### What warrants a second pair of eyes
+- Whether this test is sufficient as the replacement for the planned byok-host-style tmux smoke, or whether a separate operator playbook should still be kept for manual debugging.
+- Whether `openai` is the right provider type for the canonical BYOK integration test, or whether a Claude/OpenAI Responses variant should be added later.
+
+### What should be done in the future
+- Update the Geppetto follow-up ticket to replace the stale "document in-process fake-engine seam" task with documentation for the Geppetto-backed `httptest` provider seam.
+- Continue with `stream_options.include_usage` on the llm-proxy response wire once the core PR lands.
+
+### Code review instructions
+- Start at `pkg/byok/integration_test.go`; review `newFakeOpenAIProvider`, `testResolver`, and `TestEndToEndGeppettoKeyInjectionMeteringAndBudget`.
+- Validate with:
+  - `GOWORK=off go test ./pkg/byok -run TestEndToEndGeppettoKeyInjectionMeteringAndBudget -v`
+  - `GOWORK=off go test ./...`
+
+### Technical details
+- Required dependency: `github.com/go-go-golems/geppetto v0.13.4`.
+- Fake provider endpoint: `/v1/chat/completions`.
+- Fake usage: 12 prompt tokens + 7 completion tokens = 19 total per accepted call.
