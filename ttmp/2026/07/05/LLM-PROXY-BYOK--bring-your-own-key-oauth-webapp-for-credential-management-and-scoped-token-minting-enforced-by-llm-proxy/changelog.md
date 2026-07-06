@@ -57,3 +57,21 @@ Step 3 / Phase 2: AES-GCM vault, VaultEngineProvider key injection with scrubbin
 - /home/manuel/workspaces/2026-07-05/llm-proxy-byok/llm-proxy/pkg/byok/engines/provider.go — Per-request credential injection
 - /home/manuel/workspaces/2026-07-05/llm-proxy-byok/llm-proxy/pkg/byok/integration_test.go — CI-runnable end-to-end test
 
+
+## 2026-07-05
+
+Step 4: byok CLI rewritten on Glazed (env via LLM_PROXY_* built-in source, GlazeCommand lists, WriterCommand mutations); glazed-lint + logcopter enforced in pre-commit; two glazed integration bugs documented (hyphenated env prefix, embedded-struct decode skip) (commits 1327bef, ff91e0b).
+
+### Related Files
+
+- /home/manuel/workspaces/2026-07-05/llm-proxy-byok/llm-proxy/cmd/llm-proxy-server/cmds/byok/common.go — Glazed group plumbing and AppName rationale
+
+
+## 2026-07-05
+
+Step 5 / Phase 3: control-plane webapp — OIDC RP (Keycloak dev compose under deploy/), HMAC session cookies, JSON management API with same-origin checks, embedded Bootstrap dashboard; verified live incl. real-browser rendering (commit 6b71c01).
+
+### Related Files
+
+- /home/manuel/workspaces/2026-07-05/llm-proxy-byok/llm-proxy/pkg/byok/web/web.go — Control plane assembly and routes
+

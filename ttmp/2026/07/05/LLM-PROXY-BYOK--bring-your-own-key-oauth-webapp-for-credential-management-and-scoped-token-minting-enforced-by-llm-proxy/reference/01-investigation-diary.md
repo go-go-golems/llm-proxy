@@ -240,6 +240,124 @@ An in-process integration test (`pkg/byok/integration_test.go`) replaces the ori
 - Vault blob: `0x01 ‖ nonce(12) ‖ AES-256-GCM(secret, AAD=credentialID)`; master key base64 via `byok keygen`.
 - Credential selection: first enabled credential on the token whose `api_type` equals the profile's `Chat.ApiType`; key name written as `<api_type>-api-key` (matches geppetto factory lookup `factory.go:206`).
 
+## Step 4: Glazed CLI rewrite + glazed-lint/logcopter enforcement
+
+Per user direction, the entire byok CLI moved off hand-rolled cobra flags and `os.Getenv` onto the Glazed command framework: settings structs with `glazed:` tags, `fields.New` definitions, and glazed's built-in env source so every flag doubles as an `LLM_PROXY_*` environment variable. List commands became `GlazeCommand`s (free `--output json|table|yaml`), mutations became `WriterCommand`s. The repo already had glazed-lint and logcopter targets and CI jobs; the new code now passes both, and the pre-commit hook enforces them locally too.
+
+Two real glazed integration bugs were found and worked around; both are documented below because they will bite anyone extending these commands.
+
+### Prompt Context
+
+**User prompt (verbatim):** "use the glazed command line framework (see skill, see other tools) to do flags and env and all that. no cobra, no flags, no env. (add the glkazed ci lint rules (see ~/code/wesen/go-go-golems/infra-tooling for help, also logcopter and CICD actions and all)"
+
+**Assistant interpretation:** Replace the cobra-flag/os.Getenv byok CLI with Glazed commands (flags AND env via glazed's sources), and make sure glazed-lint, logcopter, and the CI actions from infra-tooling conventions are wired up.
+
+**Inferred user intent:** Keep the repo consistent with go-go-golems conventions: one command framework, uniform env/flag handling, and the standard lint/codegen enforcement in hooks and CI.
+
+**Commit (code):** 1327bef — "byok: rewrite CLI on Glazed with env support; wire glazed-lint/logcopter"; ff91e0b — "ci: enforce glazed-lint and logcopter-check in pre-commit hook"
+
+### What I did
+- New `cmd/llm-proxy-server/cmds/byok/` package (root.go, common.go, user.go, token.go, credential.go, keygen.go) following the glazed-command-authoring layout (group folder, verb files, `root.go` registration). Deleted the old `cmd/llm-proxy-server/byok.go`.
+- Parser config `cli.CobraParserConfig{ShortHelpSections: [default], AppName: "llm_proxy"}` on every command including serve — this activates glazed's built-in env source with prefix `LLM_PROXY_`.
+- Secrets: `credential add` reads the API key from field `byok-secret` (env `LLM_PROXY_BYOK_SECRET` preferred, flag fallback); no `os.Getenv` anywhere in the CLI.
+- `sqlite.Open` now rejects empty paths.
+- Ran `make logcopter-generate` (generated `logcopter.go` package loggers in all byok packages) and switched authmw/meter/engines from `zerolog/log` imports to the generated loggers; `make glazed-lint` and `make logcopter-check` both pass.
+- lefthook pre-commit now runs `glazed-lint` and `logcopter-check` (CI push.yml already did).
+- End-to-end CLI smoke, fully env-driven: keygen → user add → credential add (secret via env) → credential list --output json → token mint → token list --output table, with the DB path itself coming from `LLM_PROXY_BYOK_DB`.
+
+### Why
+- Single-framework CLIs get env/config/profile support, structured output, and help-system integration for free; hand-rolled cobra flags had already produced one real bug (cobra's `cmd.Printf` writes to stderr).
+
+### What worked
+- `--print-parsed-fields` (from glazed's command-settings section) was the killer debugging tool — it shows every field with its source chain (defaults/env/cobra) and immediately exposed both bugs below.
+
+### What didn't work
+- **Glazed env prefix keeps hyphens.** With `AppName: "llm-proxy"`, glazed computes the env prefix as `strings.ToUpper(AppName)` = `LLM-PROXY`, so it looked for `LLM-PROXY_BYOK_SECRET` — a name most shells can't even export. Verified with `env 'LLM-PROXY_BYOK_SECRET=x' … --print-parsed-fields` (the value loaded!). Fix: `AppName: "llm_proxy"`. Only the field name is hyphen→underscore normalized (glazed `pkg/cmds/sources/update.go:156-160`), not the prefix — arguably a glazed bug worth an upstream issue.
+- **Glazed `DecodeInto` silently skips embedded structs.** My settings structs embedded a shared `commonSettings{DB string}`; `FieldValues.DecodeInto` iterates only top-level tagged fields (glazed `pkg/cmds/fields/initialize-struct.go:146-150`), so `s.DB` stayed `""` — and the empty path made mattn/go-sqlite3 create a database file literally named `?_foreign_keys=on&_busy_timeout=5000` in the repo root. Each command process wrote to its own copy of that file, which is why the smoke *appeared* to work while no real DB existed. Fix: inline the `DB` field in every settings struct (with a comment), plus the empty-path guard in `sqlite.Open`.
+- Committing the lefthook edit initially failed because the Write tool requires reading the file first — trivial, but it meant the hook change landed one commit after the code (ff91e0b).
+
+### What I learned
+- logcopter's generated `var log = logcopter.Package(...)` collides with a `zerolog/log` import in the same package — after `go generate`, drop the import and use the generated logger.
+- The repo's CI (push.yml) already runs `make logcopter-check`, `make glazed-lint`, `go generate` + `git diff --exit-code`, unit tests; lint.yml runs golangci-lint via the shared action; release/codeql/secret-scanning workflows all exist from go-go-golems project setup. Nothing needed to be created from scratch — only the pre-commit hook lacked the two checks.
+
+### What was tricky to build
+- **Diagnosing the phantom database.** Symptoms: CLI printed success, listing showed data, yet no `.db` file existed at either the env path or the default. The chain (embedded-struct decode skip → empty path → DSN-as-filename) only became visible by `find`-ing a file named `?_foreign_keys=on&_busy_timeout=5000` in the repo root. Lesson: with layered config frameworks, verify the *effective* value (`--print-parsed-fields`), not the observable side effects.
+
+### What warrants a second pair of eyes
+- `AppName = "llm_proxy"` now also applies to the serve command — all serve flags (listen, profiles, byok-db, byok-master-key) are env-settable as `LLM_PROXY_LISTEN` etc. Intended, but it widens the config surface.
+- Two glazed upstream issues worth filing: hyphen-in-prefix env keys, and silent embedded-struct skipping in `DecodeInto`.
+
+### What should be done in the future
+- File the two glazed issues upstream.
+- Consider a `byok usage` GlazeCommand exposing the ledger for dashboards/scripts.
+
+### Code review instructions
+- Start: `cmd/llm-proxy-server/cmds/byok/common.go` (AppName rationale, build helper), then any verb file; check `main.go` for the serve-side AppName and `byokcmds.OpenVault`.
+- Validate: `make glazed-lint logcopter-check test`; env smoke: `export LLM_PROXY_BYOK_DB=/tmp/t.db LLM_PROXY_BYOK_MASTER_KEY=$(llm-proxy-server byok keygen); llm-proxy-server byok user add --username a; LLM_PROXY_BYOK_SECRET=sk-x llm-proxy-server byok credential add --user a --provider anthropic --api-type claude; llm-proxy-server byok credential list --user a --output json`.
+
+### Technical details
+- Env naming rule (glazed): `TOUPPER(AppName) + "_" + TOUPPER(section_prefix + field-name, "-"→"_")` — field `byok-master-key` → `LLM_PROXY_BYOK_MASTER_KEY`.
+- Command types: mutations `cmds.WriterCommand` (stdout via `io.Writer`), lists `cmds.GlazeCommand` (rows via `types.NewRow`/`gp.AddRow`).
+
+## Step 5: Phase 3 — control-plane webapp (OIDC login, vault UI, minting)
+
+The user-facing half of BYOK now exists: the same llm-proxy binary serves a control plane next to the data plane. Users log in (OIDC against Keycloak, or a dev-only passwordless route), manage encrypted credentials, mint scoped tokens, watch usage bars fill, and revoke — all backed by the same SQLite store the data plane enforces against. The full loop was verified live: browser dev-login → credential added via API → token minted → that token immediately worked against `/v1/models` → dashboard rendered with the credential, the token, and its 0/5000 usage bar in a real (Playwright-driven) browser.
+
+### Prompt Context
+
+**User prompt (verbatim):** "try playwright again, you should have access now without sandbox" (continuation of Step 1's implementation directive)
+
+**Assistant interpretation:** Continue Phase 3 and verify the webapp in a real browser now that Playwright access works.
+
+**Inferred user intent:** (see Step 1) — plus explicit browser-level verification of the UI.
+
+**Commit (code):** 6b71c01 — "byok: control-plane webapp — OIDC login, credential vault UI, token minting"
+
+### What I did
+- `pkg/byok/web/session.go` — HMAC-SHA256-signed session cookie (`payload.sig`, base64url; not a JWT), `Secure` derived from TLS/X-Forwarded-Proto.
+- `pkg/byok/web/oidc.go` — OIDC RP ported from the byok-host keycloak demo: go-oidc v3 discovery, state+nonce in 10-min HttpOnly cookies, ID-token + nonce verification, auto-provisioning `UpsertUser`, `sanitizeReturnTo` open-redirect guard; `/dev-login` mounted only when `--byok-dev-user` is set (loudly logged).
+- `pkg/byok/web/api.go` — session-authed JSON API: credentials CRUD (secret write-only, `secret_last4` display), token mint/list/revoke (plaintext only in the mint response), usage ledger endpoint with ownership check; same-origin check on all mutations; audit events for every mutation.
+- `pkg/byok/web/web.go` + `static/` — server assembly, embedded Bootstrap dashboard (`/app`, `/static/*` per repo web guidelines), mint form with credential multi-select and budget fields, usage progress bars.
+- `deploy/docker-compose.yaml` + `deploy/keycloak/realm-byok.json` — Keycloak 26.2 dev setup adapted from byok-host (client renamed `llm-proxy-web`, redirects to :8080, alice/password123).
+- `main.go` — flags `byok-session-secret`, `byok-oidc-issuer-url/client-id/client-secret`, `byok-public-url`, `byok-dev-user`; control plane mounts on an outer mux with the token-guarded data plane at `/` (Go 1.22 specific-pattern precedence).
+- Tests (`web_test.go`): session round-trip/tamper/wrong-secret, 401 without session, full credential→mint→usage→revoke lifecycle incl. plaintext-leak assertions, mint validation, cross-origin mutation rejection.
+
+### Why
+- One binary/one mux keeps deploys trivial and honors the design decision from design-doc/02 §3.1; route precedence gives the control plane specific paths while `/v1/*` stays behind `TokenAuth`.
+- `/dev-login` exists because meaningful browser-level verification shouldn't require Docker/Keycloak on every dev loop; it is opt-in and impossible to enable by accident.
+
+### What worked
+- The end-to-end loop on the first live run: dev-login 302 → `/api/me` → credential POST → mint POST (plaintext token in response) → `/v1/models` 200 with exactly the allowed model.
+- Playwright verification: dashboard renders logged-in state, tables populate from the API, mint form's credential picker fills — only console noise is a favicon 404.
+
+### What didn't work
+- First Playwright attempt was blocked by sandbox permissions; the user re-enabled access and the second attempt worked (no code issue).
+
+### What I learned
+- Go 1.22 mux precedence makes "control plane wins on specific paths, data plane catch-all at /" composition clean — no path-prefix router needed.
+- go-oidc v3 + oauth2 were pulled in as direct deps; everything else was already transitively present.
+
+### What was tricky to build
+- **CSRF posture for a cookie-authed JSON API.** SameSite=Lax blocks cross-site POSTs in modern browsers, but non-browser and legacy paths remain; mutations additionally verify the `Origin` header against the request host / configured public URL, while requests without an Origin header (curl, tests, SDKs) pass. This is deliberate: the API is same-origin-only from browsers but scriptable with the session cookie.
+- **Plaintext-token discipline across API shapes.** `tokenOut` is reused for list and mint responses; the plaintext lives in an `omitempty` field set exactly once in the mint handler. The lifecycle test asserts the list response never contains the minted string.
+
+### What warrants a second pair of eyes
+- The same-origin check trusts `Host` when no public URL is configured — fine behind a sane reverse proxy, but worth review for exotic deployments.
+- `/dev-login` gating: flag-only, warning-logged. Consider refusing to start with both `--byok-dev-user` and a non-loopback `--listen`.
+- Session cookies are not invalidated server-side (no session store); revocation of a compromised session requires rotating `--byok-session-secret`.
+
+### What should be done in the future
+- Keycloak end-to-end pass (docker compose) — the OIDC path is ported from working byok-host code and unit-tested, but hasn't been driven against a live Keycloak in this repo yet.
+- Favicon, logout button in the UI, per-model usage aggregates on the dashboard.
+
+### Code review instructions
+- Start: `pkg/byok/web/web.go` (assembly + route table), `oidc.go` (callback checks order: state → exchange → verify → nonce), `api.go` (`requireSession`, mint handler).
+- Validate: `go test ./pkg/byok/web/ -v`; live: `go run ./cmd/llm-proxy-server serve --profiles examples/profiles.yaml --byok-db /tmp/b.db --byok-master-key $(go run ./cmd/llm-proxy-server byok keygen) --byok-session-secret dev-session-secret-16chars --byok-dev-user alice` then open http://127.0.0.1:8080/app.
+
+### Technical details
+- Route table: `GET /login`, `GET /auth/callback`, `POST /logout`, `[GET /dev-login]`, `GET /app`, `GET /static/*`, `GET /api/me`, `GET|POST /api/credentials`, `DELETE /api/credentials/{id}`, `GET|POST /api/tokens`, `POST /api/tokens/{id}/revoke`, `GET /api/usage?token_id=&since=`.
+- New deps: `github.com/coreos/go-oidc/v3 v3.19.0`, `golang.org/x/oauth2 v0.36.0` (now direct).
+
 ## Related
 
 - `../design-doc/01-byok-for-llm-proxy-prior-art-analysis-and-architecture-proposal.md`
