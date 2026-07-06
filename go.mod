@@ -5,6 +5,7 @@ go 1.26.3
 toolchain go1.26.4
 
 require (
+	github.com/coreos/go-oidc/v3 v3.19.0
 	github.com/go-go-golems/geppetto v0.13.3
 	github.com/go-go-golems/glazed v1.3.6
 	github.com/go-go-golems/logcopter v0.1.0
@@ -12,6 +13,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.42
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.10.2
+	golang.org/x/oauth2 v0.36.0
 )
 
 require (
@@ -129,7 +131,6 @@ require (
 	golang.org/x/crypto v0.51.0 // indirect
 	golang.org/x/mod v0.36.0 // indirect
 	golang.org/x/net v0.55.0 // indirect
-	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/term v0.43.0 // indirect

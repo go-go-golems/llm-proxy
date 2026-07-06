@@ -20,6 +20,8 @@ import (
 	byokmeter "github.com/go-go-golems/llm-proxy/pkg/byok/meter"
 	byokstorepkg "github.com/go-go-golems/llm-proxy/pkg/byok/store"
 	byoksqlite "github.com/go-go-golems/llm-proxy/pkg/byok/store/sqlite"
+	"github.com/go-go-golems/llm-proxy/pkg/byok/vault"
+	byokweb "github.com/go-go-golems/llm-proxy/pkg/byok/web"
 	llmproxydoc "github.com/go-go-golems/llm-proxy/pkg/doc"
 	profilespkg "github.com/go-go-golems/llm-proxy/pkg/profiles"
 	runtimepkg "github.com/go-go-golems/llm-proxy/pkg/runtime"
@@ -36,6 +38,13 @@ type ServeSettings struct {
 	Profiles      string `glazed:"profiles"`
 	ByokDB        string `glazed:"byok-db"`
 	ByokMasterKey string `glazed:"byok-master-key"`
+
+	ByokSessionSecret    string `glazed:"byok-session-secret"`
+	ByokOIDCIssuerURL    string `glazed:"byok-oidc-issuer-url"`
+	ByokOIDCClientID     string `glazed:"byok-oidc-client-id"`
+	ByokOIDCClientSecret string `glazed:"byok-oidc-client-secret"`
+	ByokPublicURL        string `glazed:"byok-public-url"`
+	ByokDevUser          string `glazed:"byok-dev-user"`
 }
 
 func main() {
@@ -124,6 +133,42 @@ Examples:
 				fields.WithDefault(""),
 				fields.WithHelp("Vault master key (base64; env LLM_PROXY_BYOK_MASTER_KEY)"),
 			),
+			fields.New(
+				"byok-session-secret",
+				fields.TypeString,
+				fields.WithDefault(""),
+				fields.WithHelp("Control-plane session-cookie secret (>=16 chars); enables the /app webapp (env LLM_PROXY_BYOK_SESSION_SECRET)"),
+			),
+			fields.New(
+				"byok-oidc-issuer-url",
+				fields.TypeString,
+				fields.WithDefault(""),
+				fields.WithHelp("OIDC issuer for control-plane login, e.g. http://127.0.0.1:18080/realms/byok"),
+			),
+			fields.New(
+				"byok-oidc-client-id",
+				fields.TypeString,
+				fields.WithDefault("llm-proxy-web"),
+				fields.WithHelp("OIDC client ID for the control plane"),
+			),
+			fields.New(
+				"byok-oidc-client-secret",
+				fields.TypeString,
+				fields.WithDefault(""),
+				fields.WithHelp("OIDC client secret (env LLM_PROXY_BYOK_OIDC_CLIENT_SECRET)"),
+			),
+			fields.New(
+				"byok-public-url",
+				fields.TypeString,
+				fields.WithDefault("http://127.0.0.1:8080"),
+				fields.WithHelp("Externally visible base URL (OIDC redirect + origin checks)"),
+			),
+			fields.New(
+				"byok-dev-user",
+				fields.TypeString,
+				fields.WithDefault(""),
+				fields.WithHelp("DEV ONLY: enable passwordless /dev-login as this user"),
+			),
 		),
 		cmds.WithSections(commandSettingsSection),
 	)
@@ -141,6 +186,7 @@ func (c *ServeCommand) Run(ctx context.Context, parsedValues *values.Values) err
 
 func runServer(ctx context.Context, opts *ServeSettings) error {
 	var byokStore byokstorepkg.Store
+	var byokVault *vault.Vault
 	var engineProvider runtimepkg.EngineProvider
 	var usageRecorder runtimepkg.UsageRecorder
 	if opts.ByokDB != "" {
@@ -154,6 +200,7 @@ func runServer(ctx context.Context, opts *ServeSettings) error {
 		if err != nil {
 			return err
 		}
+		byokVault = v
 		engineProvider = &byokengines.VaultEngineProvider{Vault: v, Store: st}
 		usageRecorder = &byokmeter.Recorder{Store: st}
 		log.Printf("BYOK enforcement enabled (db %s): per-user credentials, scoped models, metering", opts.ByokDB)
@@ -181,6 +228,33 @@ func runServer(ctx context.Context, opts *ServeSettings) error {
 	handler := http.Handler(srv.Handler())
 	if byokStore != nil {
 		handler = authmw.TokenAuth(byokStore, handler)
+	}
+
+	// Control plane: mounted when BYOK is on and a session secret is set.
+	if byokStore != nil && opts.ByokSessionSecret != "" {
+		var oidcCfg *byokweb.OIDCConfig
+		if opts.ByokOIDCIssuerURL != "" {
+			oidcCfg = &byokweb.OIDCConfig{
+				IssuerURL:    opts.ByokOIDCIssuerURL,
+				ClientID:     opts.ByokOIDCClientID,
+				ClientSecret: opts.ByokOIDCClientSecret,
+				PublicURL:    opts.ByokPublicURL,
+			}
+		}
+		webServer, err := byokweb.NewServer(ctx, byokweb.Config{
+			Store: byokStore, Vault: byokVault,
+			SessionSecret: opts.ByokSessionSecret,
+			OIDC:          oidcCfg,
+			DevUser:       opts.ByokDevUser,
+		})
+		if err != nil {
+			return err
+		}
+		outer := http.NewServeMux()
+		webServer.Register(outer)
+		outer.Handle("/", handler)
+		handler = outer
+		log.Printf("BYOK control plane enabled at /app (OIDC: %v, dev login: %v)", oidcCfg != nil, opts.ByokDevUser != "")
 	}
 	httpServer := &http.Server{
 		Addr:              opts.Listen,

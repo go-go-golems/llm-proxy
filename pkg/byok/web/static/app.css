@@ -1,0 +1,6 @@
+.usage-bar {
+  min-width: 120px;
+}
+#mint-result code {
+  word-break: break-all;
+}

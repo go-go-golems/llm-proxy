@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>llm-proxy BYOK</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="/static/app.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<nav class="navbar navbar-dark bg-dark mb-4">
+  <div class="container">
+    <span class="navbar-brand">llm-proxy · Bring Your Own Key</span>
+    <span class="text-light" id="whoami"></span>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="row g-4">
+    <div class="col-lg-5">
+      <div class="card">
+        <div class="card-header">Provider credentials</div>
+        <div class="card-body">
+          <table class="table table-sm" id="credentials-table">
+            <thead><tr><th>Label</th><th>Provider</th><th>API type</th><th>Secret</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <form id="credential-form" class="row g-2">
+            <div class="col-6"><input class="form-control form-control-sm" name="label" placeholder="label"></div>
+            <div class="col-6"><input class="form-control form-control-sm" name="provider" placeholder="provider (anthropic)" required></div>
+            <div class="col-6"><input class="form-control form-control-sm" name="api_type" placeholder="api type (claude)" required></div>
+            <div class="col-6"><input class="form-control form-control-sm" type="password" name="secret" placeholder="API key" required></div>
+            <div class="col-12"><button class="btn btn-primary btn-sm">Add credential</button></div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-7">
+      <div class="card">
+        <div class="card-header">Minted tokens</div>
+        <div class="card-body">
+          <div id="mint-result" class="alert alert-success d-none" role="alert"></div>
+          <table class="table table-sm align-middle" id="tokens-table">
+            <thead><tr><th>Name</th><th>Models</th><th>Usage</th><th>Status</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <form id="token-form" class="row g-2">
+            <div class="col-4"><input class="form-control form-control-sm" name="name" placeholder="token name" required></div>
+            <div class="col-8"><input class="form-control form-control-sm" name="allowed_models" placeholder="models (comma or glob: sonnet,gpt-*)" required></div>
+            <div class="col-6"><select class="form-select form-select-sm" name="credential_ids" multiple required></select></div>
+            <div class="col-6">
+              <input class="form-control form-control-sm mb-1" type="number" name="max_total_tokens" placeholder="max tokens (0 = ∞)">
+              <input class="form-control form-control-sm mb-1" type="number" name="rate_limit_rpm" placeholder="rate limit rpm (0 = ∞)">
+              <input class="form-control form-control-sm" type="number" name="expires_in_days" placeholder="expires in days (0 = never)">
+            </div>
+            <div class="col-12"><button class="btn btn-primary btn-sm">Mint token</button></div>
+          </form>
+        </div>
+      </div>
+
+      <div class="card mt-4">
+        <div class="card-header">Usage <small class="text-muted" id="usage-token-name"></small></div>
+        <div class="card-body">
+          <table class="table table-sm" id="usage-table">
+            <thead><tr><th>When</th><th>Model</th><th>Prompt</th><th>Completion</th><th>Streamed</th><th>Status</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
