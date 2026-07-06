@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-go-golems/geppetto/pkg/inference/engine"
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog/log"
 
 	"github.com/go-go-golems/llm-proxy/pkg/byok/apierr"
 	"github.com/go-go-golems/llm-proxy/pkg/byok/authmw"

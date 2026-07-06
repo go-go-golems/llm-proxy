@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/go-go-golems/geppetto/pkg/turns"
-	"github.com/rs/zerolog/log"
 
 	"github.com/go-go-golems/llm-proxy/pkg/byok/authmw"
 	"github.com/go-go-golems/llm-proxy/pkg/byok/store"

@@ -14,6 +14,7 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/help"
 	help_cmd "github.com/go-go-golems/glazed/pkg/help/cmd"
+	byokcmds "github.com/go-go-golems/llm-proxy/cmd/llm-proxy-server/cmds/byok"
 	"github.com/go-go-golems/llm-proxy/pkg/byok/authmw"
 	byokengines "github.com/go-go-golems/llm-proxy/pkg/byok/engines"
 	byokmeter "github.com/go-go-golems/llm-proxy/pkg/byok/meter"
@@ -66,11 +67,15 @@ Provider setup lives in Geppetto profile YAML. Without a profiles file the serve
 	serveCobraCmd, err := cli.BuildCobraCommandFromCommand(serveCmd,
 		cli.WithParserConfig(cli.CobraParserConfig{
 			ShortHelpSections: []string{schema.DefaultSlug},
+			AppName:           byokcmds.AppName,
 		}),
 	)
 	cobra.CheckErr(err)
 	rootCmd.AddCommand(serveCobraCmd)
-	rootCmd.AddCommand(newByokCommand())
+
+	byokCobraCmd, err := byokcmds.NewCommand()
+	cobra.CheckErr(err)
+	rootCmd.AddCommand(byokCobraCmd)
 
 	return rootCmd
 }
@@ -117,7 +122,7 @@ Examples:
 				"byok-master-key",
 				fields.TypeString,
 				fields.WithDefault(""),
-				fields.WithHelp("Vault master key (base64); default $"+masterKeyEnv),
+				fields.WithHelp("Vault master key (base64; env LLM_PROXY_BYOK_MASTER_KEY)"),
 			),
 		),
 		cmds.WithSections(commandSettingsSection),
@@ -145,7 +150,7 @@ func runServer(ctx context.Context, opts *ServeSettings) error {
 		}
 		byokStore = st
 		defer func() { _ = st.Close() }()
-		v, err := openVault(opts.ByokMasterKey)
+		v, err := byokcmds.OpenVault(opts.ByokMasterKey)
 		if err != nil {
 			return err
 		}

@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rs/zerolog/log"
-
 	"github.com/go-go-golems/llm-proxy/pkg/byok/apierr"
 	"github.com/go-go-golems/llm-proxy/pkg/byok/policy"
 	"github.com/go-go-golems/llm-proxy/pkg/byok/store"

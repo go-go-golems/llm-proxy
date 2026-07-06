@@ -23,6 +23,11 @@ var _ store.Store = &Store{}
 
 // Open creates or opens the BYOK database at path and ensures the schema.
 func Open(path string) (*Store, error) {
+	if path == "" {
+		// An empty path would make the driver treat the DSN query string as
+		// the filename (creating a file literally named "?_foreign_keys=…").
+		return nil, errors.New("byok db path is empty")
+	}
 	if dir := filepath.Dir(path); dir != "." && dir != "" {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return nil, errors.Wrap(err, "create byok db directory")
