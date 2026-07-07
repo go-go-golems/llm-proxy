@@ -19,6 +19,7 @@ type GeppettoChatCompletionService struct {
 	Profiles profiles.ProfileResolver
 	Engines  EngineProvider
 	Mapper   openaichat.Mapper
+	Usage    UsageRecorder
 }
 
 func (s *GeppettoChatCompletionService) Complete(ctx context.Context, req *openaichat.ChatCompletionRequest) (*openaichat.ChatCompletionResponse, error) {
@@ -47,6 +48,9 @@ func (s *GeppettoChatCompletionService) Complete(ctx context.Context, req *opena
 		return nil, err
 	}
 	out, result, err := geppettoengine.RunInferenceWithResult(runCtx, eng, turn)
+	if s.Usage != nil {
+		s.Usage.RecordInference(ctx, req.Model, usageFrom(result), false, err)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("run inference for profile %q: %w", req.Model, err)
 	}
@@ -87,6 +91,9 @@ func (s *GeppettoChatCompletionService) Stream(ctx context.Context, req *openaic
 		defer close(frames)
 		frames <- openaichat.RoleFrame(id, req.Model, created)
 		out, result, err := geppettoengine.RunInferenceWithResult(runCtx, eng, turn)
+		if s.Usage != nil {
+			s.Usage.RecordInference(ctx, req.Model, usageFrom(result), true, err)
+		}
 		if err != nil {
 			frames <- openaichat.ChatStreamFrame{Err: fmt.Errorf("run inference for profile %q: %w", req.Model, err)}
 			return

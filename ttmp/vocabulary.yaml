@@ -9,6 +9,16 @@ topics:
       description: OpenAI-compatible APIs and providers
     - slug: anthropic
       description: Anthropic Claude APIs and providers
+    - slug: byok
+      description: Bring-your-own-key credential brokering
+    - slug: auth
+      description: Authentication, OAuth/OIDC, and token issuance
+    - slug: security
+      description: Security model, trust boundaries, and secret handling
+    - slug: metering
+      description: Usage metering, quotas, and rate limiting
+    - slug: frontend
+      description: Web frontend and UI work
 docTypes:
     - slug: index
       description: Ticket index document

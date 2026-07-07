@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"time"
@@ -14,6 +15,14 @@ import (
 	"github.com/go-go-golems/glazed/pkg/cmds/values"
 	"github.com/go-go-golems/glazed/pkg/help"
 	help_cmd "github.com/go-go-golems/glazed/pkg/help/cmd"
+	byokcmds "github.com/go-go-golems/llm-proxy/cmd/llm-proxy-server/cmds/byok"
+	"github.com/go-go-golems/llm-proxy/pkg/byok/authmw"
+	byokengines "github.com/go-go-golems/llm-proxy/pkg/byok/engines"
+	byokmeter "github.com/go-go-golems/llm-proxy/pkg/byok/meter"
+	byokstorepkg "github.com/go-go-golems/llm-proxy/pkg/byok/store"
+	byoksqlite "github.com/go-go-golems/llm-proxy/pkg/byok/store/sqlite"
+	"github.com/go-go-golems/llm-proxy/pkg/byok/vault"
+	byokweb "github.com/go-go-golems/llm-proxy/pkg/byok/web"
 	llmproxydoc "github.com/go-go-golems/llm-proxy/pkg/doc"
 	profilespkg "github.com/go-go-golems/llm-proxy/pkg/profiles"
 	runtimepkg "github.com/go-go-golems/llm-proxy/pkg/runtime"
@@ -26,8 +35,17 @@ type ServeCommand struct {
 }
 
 type ServeSettings struct {
-	Listen   string `glazed:"listen"`
-	Profiles string `glazed:"profiles"`
+	Listen        string `glazed:"listen"`
+	Profiles      string `glazed:"profiles"`
+	ByokDB        string `glazed:"byok-db"`
+	ByokMasterKey string `glazed:"byok-master-key"`
+
+	ByokSessionSecret    string `glazed:"byok-session-secret"`
+	ByokOIDCIssuerURL    string `glazed:"byok-oidc-issuer-url"`
+	ByokOIDCClientID     string `glazed:"byok-oidc-client-id"`
+	ByokOIDCClientSecret string `glazed:"byok-oidc-client-secret"`
+	ByokPublicURL        string `glazed:"byok-public-url"`
+	ByokDevUser          string `glazed:"byok-dev-user"`
 }
 
 func main() {
@@ -59,10 +77,15 @@ Provider setup lives in Geppetto profile YAML. Without a profiles file the serve
 	serveCobraCmd, err := cli.BuildCobraCommandFromCommand(serveCmd,
 		cli.WithParserConfig(cli.CobraParserConfig{
 			ShortHelpSections: []string{schema.DefaultSlug},
+			AppName:           byokcmds.AppName,
 		}),
 	)
 	cobra.CheckErr(err)
 	rootCmd.AddCommand(serveCobraCmd)
+
+	byokCobraCmd, err := byokcmds.NewCommand()
+	cobra.CheckErr(err)
+	rootCmd.AddCommand(byokCobraCmd)
 
 	return rootCmd
 }
@@ -99,6 +122,54 @@ Examples:
 				fields.WithDefault(""),
 				fields.WithHelp("Path to Geppetto profile YAML"),
 			),
+			fields.New(
+				"byok-db",
+				fields.TypeString,
+				fields.WithDefault(""),
+				fields.WithHelp("Path to the BYOK SQLite database; enables bearer-token enforcement on /v1/*"),
+			),
+			fields.New(
+				"byok-master-key",
+				fields.TypeString,
+				fields.WithDefault(""),
+				fields.WithHelp("Vault master key (base64; env LLM_PROXY_BYOK_MASTER_KEY)"),
+			),
+			fields.New(
+				"byok-session-secret",
+				fields.TypeString,
+				fields.WithDefault(""),
+				fields.WithHelp("Control-plane session-cookie secret (>=16 chars); enables the /app webapp (env LLM_PROXY_BYOK_SESSION_SECRET)"),
+			),
+			fields.New(
+				"byok-oidc-issuer-url",
+				fields.TypeString,
+				fields.WithDefault(""),
+				fields.WithHelp("OIDC issuer for control-plane login, e.g. http://127.0.0.1:18080/realms/byok"),
+			),
+			fields.New(
+				"byok-oidc-client-id",
+				fields.TypeString,
+				fields.WithDefault("llm-proxy-web"),
+				fields.WithHelp("OIDC client ID for the control plane"),
+			),
+			fields.New(
+				"byok-oidc-client-secret",
+				fields.TypeString,
+				fields.WithDefault(""),
+				fields.WithHelp("OIDC client secret (env LLM_PROXY_BYOK_OIDC_CLIENT_SECRET)"),
+			),
+			fields.New(
+				"byok-public-url",
+				fields.TypeString,
+				fields.WithDefault("http://127.0.0.1:8080"),
+				fields.WithHelp("Externally visible base URL (OIDC redirect + origin checks)"),
+			),
+			fields.New(
+				"byok-dev-user",
+				fields.TypeString,
+				fields.WithDefault(""),
+				fields.WithHelp("DEV ONLY: enable passwordless /dev-login as this user"),
+			),
 		),
 		cmds.WithSections(commandSettingsSection),
 	)
@@ -115,6 +186,33 @@ func (c *ServeCommand) Run(ctx context.Context, parsedValues *values.Values) err
 }
 
 func runServer(ctx context.Context, opts *ServeSettings) error {
+	if opts.ByokDB != "" && opts.Profiles == "" {
+		return errors.New("--byok-db requires --profiles so BYOK requests use credential injection, model scoping, and usage metering")
+	}
+
+	var byokStore byokstorepkg.Store
+	var byokVault *vault.Vault
+	var engineProvider runtimepkg.EngineProvider
+	var usageRecorder runtimepkg.UsageRecorder
+	if opts.ByokDB != "" {
+		st, err := byoksqlite.Open(opts.ByokDB)
+		if err != nil {
+			return err
+		}
+		byokStore = st
+		defer func() { _ = st.Close() }()
+		v, err := byokcmds.OpenVault(opts.ByokMasterKey)
+		if err != nil {
+			return err
+		}
+		byokVault = v
+		engineProvider = &byokengines.VaultEngineProvider{Vault: v, Store: st}
+		usageRecorder = &byokmeter.Recorder{Store: st}
+		log.Printf("BYOK enforcement enabled (db %s): per-user credentials, scoped models, metering", opts.ByokDB)
+	} else {
+		log.Printf("WARNING: BYOK disabled — /v1/* is unauthenticated (pass --byok-db to enable)")
+	}
+
 	var modelLister server.ModelLister
 	var completionService server.CompletionService
 	var chatCompletionService server.ChatCompletionService
@@ -124,14 +222,48 @@ func runServer(ctx context.Context, opts *ServeSettings) error {
 			return err
 		}
 		modelLister = profileModelLister{resolver: resolver}
-		completionService = &runtimepkg.GeppettoCompletionService{Profiles: resolver}
-		chatCompletionService = &runtimepkg.GeppettoChatCompletionService{Profiles: resolver}
+		completionService = &runtimepkg.GeppettoCompletionService{Profiles: resolver, Engines: engineProvider, Usage: usageRecorder}
+		chatCompletionService = &runtimepkg.GeppettoChatCompletionService{Profiles: resolver, Engines: engineProvider, Usage: usageRecorder}
+	}
+	if byokStore != nil {
+		modelLister = &authmw.ScopedModelLister{Inner: modelLister}
 	}
 
 	srv := server.New(server.Options{CompletionService: completionService, ChatCompletionService: chatCompletionService, ModelLister: modelLister})
+	handler := http.Handler(srv.Handler())
+	if byokStore != nil {
+		handler = authmw.TokenAuth(byokStore, handler)
+	}
+
+	// Control plane: mounted when BYOK is on and a session secret is set.
+	if byokStore != nil && opts.ByokSessionSecret != "" {
+		var oidcCfg *byokweb.OIDCConfig
+		if opts.ByokOIDCIssuerURL != "" {
+			oidcCfg = &byokweb.OIDCConfig{
+				IssuerURL:    opts.ByokOIDCIssuerURL,
+				ClientID:     opts.ByokOIDCClientID,
+				ClientSecret: opts.ByokOIDCClientSecret,
+				PublicURL:    opts.ByokPublicURL,
+			}
+		}
+		webServer, err := byokweb.NewServer(ctx, byokweb.Config{
+			Store: byokStore, Vault: byokVault,
+			SessionSecret: opts.ByokSessionSecret,
+			OIDC:          oidcCfg,
+			DevUser:       opts.ByokDevUser,
+		})
+		if err != nil {
+			return err
+		}
+		outer := http.NewServeMux()
+		webServer.Register(outer)
+		outer.Handle("/", handler)
+		handler = outer
+		log.Printf("BYOK control plane enabled at /app (OIDC: %v, dev login: %v)", oidcCfg != nil, opts.ByokDevUser != "")
+	}
 	httpServer := &http.Server{
 		Addr:              opts.Listen,
-		Handler:           srv.Handler(),
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       120 * time.Second,

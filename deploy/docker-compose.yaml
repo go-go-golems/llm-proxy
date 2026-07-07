@@ -1,0 +1,29 @@
+# Keycloak identity provider for the BYOK control plane (dev setup).
+#
+#   docker compose -f deploy/docker-compose.yaml up
+#   → Keycloak on http://127.0.0.1:18080, realm `byok` auto-imported,
+#     confidential client llm-proxy-web / llm-proxy-web-secret,
+#     test user alice / password123.
+#
+# Then:
+#   llm-proxy-server serve --profiles examples/profiles.yaml \
+#     --byok-db var/byok.db --byok-master-key $KEY \
+#     --byok-session-secret $SESSION_SECRET \
+#     --byok-oidc-issuer-url http://127.0.0.1:18080/realms/byok \
+#     --byok-oidc-client-id llm-proxy-web \
+#     --byok-oidc-client-secret llm-proxy-web-secret \
+#     --byok-public-url http://127.0.0.1:8080
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.2
+    command:
+      - start-dev
+      - --http-port=8080
+      - --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "${KEYCLOAK_PORT:-18080}:8080"
+    volumes:
+      - ./keycloak/realm-byok.json:/opt/keycloak/data/import/realm-byok.json:ro
