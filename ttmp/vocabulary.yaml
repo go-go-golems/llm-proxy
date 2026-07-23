@@ -19,6 +19,12 @@ topics:
       description: Usage metering, quotas, and rate limiting
     - slug: frontend
       description: Web frontend and UI work
+    - slug: oidc
+      description: OpenID Connect identity providers and relying-party flows
+    - slug: identity
+      description: Identity provider embedding and account lifecycle
+    - slug: integration
+      description: Cross-repo integration and migration work
 docTypes:
     - slug: index
       description: Ticket index document
@@ -26,6 +32,8 @@ docTypes:
       description: Architecture and implementation design document
     - slug: reference
       description: Reference and diary document
+    - slug: research
+      description: Evidence-gathering and source inventory document for architects
 intent:
     - slug: long-term
       description: Long-term reference and design guidance

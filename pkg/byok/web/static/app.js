@@ -28,12 +28,32 @@ async function refreshMe() {
   document.getElementById("whoami").textContent = me.username;
 }
 
+function updateGrantFormAvailability() {
+  const credentialSelect = document.querySelector("#grant-form select[name=credential_ids]");
+  const modelSelect = document.querySelector("#grant-form select[name=allowed_models]");
+  const submit = document.querySelector("#grant-form button[type=submit]");
+  const hasCredentials = Array.from(credentialSelect.options).some((option) => !option.disabled && option.value);
+  const hasModels = Array.from(modelSelect.options).some((option) => !option.disabled && option.value);
+  const unavailable = !hasCredentials || !hasModels;
+  submit.disabled = unavailable;
+  const tokenSubmit = document.querySelector("#token-form button[type=submit]");
+  if (tokenSubmit) tokenSubmit.disabled = !hasCredentials;
+}
+
 async function refreshCredentials() {
   const creds = await api("/api/credentials");
   const tbody = document.querySelector("#credentials-table tbody");
-  const select = document.querySelector("#token-form select[name=credential_ids]");
+  const selects = document.querySelectorAll("select[name=credential_ids]");
   tbody.innerHTML = "";
-  select.innerHTML = "";
+  selects.forEach((select) => { select.innerHTML = ""; });
+  if (creds.length === 0) {
+    selects.forEach((select) => {
+      select.append(el("option", { disabled: "", selected: "" }, "No provider credentials available"));
+      select.disabled = true;
+    });
+  } else {
+    selects.forEach((select) => { select.disabled = false; });
+  }
   for (const c of creds) {
     const tr = el("tr");
     tr.append(el("td", {}, c.label), el("td", {}, c.provider), el("td", {}, c.api_type), el("td", {}, c.secret_last4));
@@ -47,8 +67,9 @@ async function refreshCredentials() {
     td.append(btn);
     tr.append(td);
     tbody.append(tr);
-    select.append(el("option", { value: c.id }, `${c.label} (${c.api_type})`));
+    selects.forEach((select) => select.append(el("option", { value: c.id }, `${c.label} (${c.api_type})`)));
   }
+  updateGrantFormAvailability();
 }
 
 function usageCell(t) {
@@ -63,6 +84,52 @@ function usageCell(t) {
     td.append(el("small", {}, `${t.used_tokens} tok · ${t.used_requests} req`));
   }
   return td;
+}
+
+async function refreshGrantModels() {
+  const models = await api("/api/grant-models");
+  const select = document.querySelector("#grant-form select[name=allowed_models]");
+  select.innerHTML = "";
+  if (models.length === 0) {
+    select.append(el("option", { disabled: "", selected: "" }, "No configured profiles available"));
+    select.disabled = true;
+  } else {
+    select.disabled = false;
+    models.forEach((model) => select.append(el("option", { value: model }, model)));
+  }
+  updateGrantFormAvailability();
+}
+
+async function refreshGrants() {
+  const grants = await api("/api/agent-grants");
+  const tbody = document.querySelector("#grants-table tbody");
+  tbody.innerHTML = "";
+  for (const grant of grants) {
+    const tr = el("tr");
+    const status = grant.revoked_at || !grant.enabled ? "revoked" : "active";
+    const usage = grant.grant_max_total_tokens
+      ? `${grant.used_tokens} / ${grant.grant_max_total_tokens} tok · ${grant.used_requests} req`
+      : `${grant.used_tokens} tok · ${grant.used_requests} req`;
+    tr.append(
+      el("td", {}, grant.name),
+      el("td", {}, (grant.allowed_models || []).join(", ")),
+      el("td", {}, usage),
+      el("td", {}, `${grant.token_ttl_seconds}s`),
+      el("td", {}, status),
+    );
+    const actions = el("td");
+    if (status === "active") {
+      const revoke = el("button", { class: "btn btn-outline-danger btn-sm" }, "revoke");
+      revoke.onclick = async () => {
+        if (!confirm(`Revoke agent grant "${grant.name}" and every child token?`)) return;
+        await api(`/api/agent-grants/${grant.id}/revoke`, { method: "POST" });
+        await Promise.all([refreshGrants(), refreshTokens()]);
+      };
+      actions.append(revoke);
+    }
+    tr.append(actions);
+    tbody.append(tr);
+  }
 }
 
 async function refreshTokens() {
@@ -119,6 +186,29 @@ document.getElementById("credential-form").onsubmit = async (ev) => {
   await refreshCredentials();
 };
 
+document.getElementById("grant-form").onsubmit = async (ev) => {
+  ev.preventDefault();
+  const form = ev.target;
+  const optionalNumber = (name) => form[name].value ? Number(form[name].value) : null;
+  const body = {
+    name: form.name.value,
+    credential_ids: Array.from(form.credential_ids.selectedOptions).map((o) => o.value),
+    allowed_models: Array.from(form.allowed_models.selectedOptions).map((o) => o.value),
+    token_ttl_seconds: Number(form.token_ttl_seconds.value),
+    max_active_per_instance: Number(form.max_active_per_instance.value),
+    grant_max_total_tokens: optionalNumber("grant_max_total_tokens"),
+    grant_max_requests: optionalNumber("grant_max_requests"),
+    per_token_max_total_tokens: optionalNumber("per_token_max_total_tokens"),
+    per_token_max_requests: optionalNumber("per_token_max_requests"),
+    rate_limit_rpm: optionalNumber("rate_limit_rpm"),
+  };
+  await api("/api/agent-grants", { method: "POST", body: JSON.stringify(body) });
+  form.reset();
+  form.token_ttl_seconds.value = "28800";
+  form.max_active_per_instance.value = "1";
+  await refreshGrants();
+};
+
 document.getElementById("token-form").onsubmit = async (ev) => {
   ev.preventDefault();
   const form = ev.target;
@@ -143,6 +233,6 @@ document.getElementById("token-form").onsubmit = async (ev) => {
 };
 
 async function refreshAll() {
-  await Promise.all([refreshMe(), refreshCredentials(), refreshTokens()]);
+  await Promise.all([refreshMe(), refreshCredentials(), refreshGrantModels(), refreshGrants(), refreshTokens()]);
 }
 refreshAll().catch((err) => console.error(err));

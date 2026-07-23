@@ -20,13 +20,13 @@ func TestSessionCodecRoundTripAndTamper(t *testing.T) {
 	if err != nil {
 		t.Fatalf("codec: %v", err)
 	}
-	value, err := codec.Encode(web.SessionClaims{Subject: "s", Username: "alice", UserID: "u1"})
+	value, err := codec.Encode("opaque-session-id")
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}
-	claims, err := codec.Decode(value)
-	if err != nil || claims.Username != "alice" || claims.UserID != "u1" {
-		t.Fatalf("decode: %v %+v", err, claims)
+	sessionID, err := codec.Decode(value)
+	if err != nil || sessionID != "opaque-session-id" {
+		t.Fatalf("decode: %v %q", err, sessionID)
 	}
 	// Tampered payload fails signature verification.
 	parts := strings.SplitN(value, ".", 2)
@@ -62,6 +62,7 @@ func newWebFixture(t *testing.T) *webFixture {
 	}
 	srv, err := web.NewServer(ctx, web.Config{
 		Store: st, Vault: v, SessionSecret: "0123456789abcdef", DevUser: "alice",
+		AllowedGrantModels: []string{"model-a", "sonnet"},
 	})
 	if err != nil {
 		t.Fatalf("server: %v", err)
@@ -85,7 +86,7 @@ func newWebFixture(t *testing.T) *webFixture {
 	if cookie == nil {
 		t.Fatal("no session cookie from dev-login")
 	}
-	user, err := st.GetUserBySubject(ctx, "local:alice")
+	user, err := st.GetUserByIdentity(ctx, "urn:llm-proxy:dev", "alice")
 	if err != nil {
 		t.Fatalf("user: %v", err)
 	}
@@ -114,6 +115,36 @@ func TestAPIRequiresSession(t *testing.T) {
 	f := newWebFixture(t)
 	if w := f.do(t, http.MethodGet, "/api/credentials", "", false); w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 without session, got %d", w.Code)
+	}
+}
+
+func TestRootRedirectsToApp(t *testing.T) {
+	f := newWebFixture(t)
+	w := f.do(t, http.MethodGet, "/", "", false)
+	if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/app" {
+		t.Fatalf("root redirect = %d %q", w.Code, w.Header().Get("Location"))
+	}
+}
+
+func TestSessionListAndPerSessionRevocation(t *testing.T) {
+	f := newWebFixture(t)
+	w := f.do(t, http.MethodGet, "/api/sessions", "", true)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list sessions: %d %s", w.Code, w.Body.String())
+	}
+	var sessions []struct {
+		ID      string `json:"id"`
+		Current bool   `json:"current"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &sessions); err != nil || len(sessions) != 1 || !sessions[0].Current || sessions[0].ID == "" {
+		t.Fatalf("sessions = %+v, %v", sessions, err)
+	}
+	w = f.do(t, http.MethodPost, "/api/sessions/"+sessions[0].ID+"/revoke", "", true)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("revoke session: %d %s", w.Code, w.Body.String())
+	}
+	if w = f.do(t, http.MethodGet, "/api/me", "", true); w.Code != http.StatusUnauthorized {
+		t.Fatalf("revoked session remained usable: %d", w.Code)
 	}
 }
 
@@ -190,6 +221,43 @@ func TestCredentialAndTokenLifecycleViaAPI(t *testing.T) {
 	// and removes the row.
 	if w := f.do(t, http.MethodDelete, "/api/credentials/"+cred.ID, "", true); w.Code != http.StatusNoContent {
 		t.Fatalf("delete credential: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgentGrantLifecycleViaAPI(t *testing.T) {
+	f := newWebFixture(t)
+	credential, err := f.store.CreateCredential(context.Background(), store.Credential{UserID: f.user.ID, Provider: "openai", APIType: "openai", Label: "agent", SecretCipher: []byte{1}, SecretLast4: "safe"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := `{"name":"laptop","credential_ids":["` + credential.ID + `"],"allowed_models":["model-a"],"per_token_max_total_tokens":1000,"token_ttl_seconds":3600,"max_active_per_instance":1,"grant_max_total_tokens":5000}`
+	w := f.do(t, http.MethodPost, "/api/agent-grants", body, true)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create grant: %d %s", w.Code, w.Body.String())
+	}
+	var grant struct {
+		ID         string `json:"id"`
+		Enabled    bool   `json:"enabled"`
+		UsedTokens int64  `json:"used_tokens"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &grant); err != nil || grant.ID == "" || !grant.Enabled || grant.UsedTokens != 0 {
+		t.Fatalf("grant response = %+v, %v", grant, err)
+	}
+	if w := f.do(t, http.MethodPost, "/api/agent-grants", strings.Replace(body, "model-a", "unknown-model", 1), true); w.Code != http.StatusBadRequest {
+		t.Fatalf("unknown model accepted: %d", w.Code)
+	}
+	updated := strings.Replace(body, "laptop", "laptop-tightened", 1)
+	w = f.do(t, http.MethodPatch, "/api/agent-grants/"+grant.ID, updated, true)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "laptop-tightened") {
+		t.Fatalf("update grant: %d %s", w.Code, w.Body.String())
+	}
+	w = f.do(t, http.MethodGet, "/api/agent-grants", "", true)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), grant.ID) {
+		t.Fatalf("list grants: %d %s", w.Code, w.Body.String())
+	}
+	w = f.do(t, http.MethodPost, "/api/agent-grants/"+grant.ID+"/revoke", "", true)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("revoke grant: %d %s", w.Code, w.Body.String())
 	}
 }
 

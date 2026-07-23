@@ -11,7 +11,12 @@
 <nav class="navbar navbar-dark bg-dark mb-4">
   <div class="container">
     <span class="navbar-brand">llm-proxy · Bring Your Own Key</span>
-    <span class="text-light" id="whoami"></span>
+    <div class="d-flex align-items-center gap-3">
+      <span class="text-light" id="whoami"></span>
+      <form method="post" action="/logout">
+        <button class="btn btn-outline-light btn-sm" type="submit">Sign out</button>
+      </form>
+    </div>
   </div>
 </nav>
 
@@ -54,7 +59,7 @@
               <input class="form-control form-control-sm mb-1" type="number" name="rate_limit_rpm" placeholder="rate limit rpm (0 = ∞)">
               <input class="form-control form-control-sm" type="number" name="expires_in_days" placeholder="expires in days (0 = never)">
             </div>
-            <div class="col-12"><button class="btn btn-primary btn-sm">Mint token</button></div>
+            <div class="col-12"><button type="submit" class="btn btn-primary btn-sm">Mint token</button></div>
           </form>
         </div>
       </div>
@@ -68,6 +73,77 @@
           </table>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="card mt-4 mb-4">
+    <div class="card-header">Coding-agent grants</div>
+    <div class="card-body">
+      <p class="small text-muted">Pre-approve exactly which credentials, profiles, lifetime, and cumulative budget a device may exchange into capability tokens.</p>
+      <table class="table table-sm align-middle" id="grants-table">
+        <thead><tr><th>Name</th><th>Models</th><th>Cumulative usage</th><th>Token TTL</th><th>Status</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <hr>
+      <h2 class="h6 mb-3">Create a grant</h2>
+      <form id="grant-form" class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label" for="grant-name">Name</label>
+          <input id="grant-name" class="form-control form-control-sm" name="name" placeholder="Workstation" required>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="grant-credentials">Provider credentials</label>
+          <select id="grant-credentials" class="form-select form-select-sm" name="credential_ids" multiple size="3" required></select>
+          <div class="form-text">Create a provider credential first if this list is empty. The agent never receives these secrets.</div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="grant-models">Allowed profiles</label>
+          <select id="grant-models" class="form-select form-select-sm" name="allowed_models" multiple size="3" required></select>
+          <div class="form-text">Choose concrete configured profiles; free-form models are not accepted.</div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="grant-token-ttl">Capability lifetime (seconds)</label>
+          <input id="grant-token-ttl" class="form-control form-control-sm" type="number" min="60" name="token_ttl_seconds" value="28800" required>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="grant-active-limit">Active capabilities per installation</label>
+          <input id="grant-active-limit" class="form-control form-control-sm" type="number" min="1" name="max_active_per_instance" value="1" required>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="grant-rate-limit">Rate limit (requests/minute)</label>
+          <input id="grant-rate-limit" class="form-control form-control-sm" type="number" min="1" name="rate_limit_rpm" placeholder="Unlimited">
+          <div class="form-text">Leave blank for no per-minute limit.</div>
+        </div>
+        <fieldset class="col-md-6">
+          <legend class="h6">Lifetime grant budget</legend>
+          <div class="row g-2">
+            <div class="col-sm-6">
+              <label class="form-label" for="grant-total-tokens">Total tokens</label>
+              <input id="grant-total-tokens" class="form-control form-control-sm" type="number" min="1" name="grant_max_total_tokens" placeholder="Unlimited">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="grant-total-requests">Total requests</label>
+              <input id="grant-total-requests" class="form-control form-control-sm" type="number" min="1" name="grant_max_requests" placeholder="Unlimited">
+            </div>
+          </div>
+          <div class="form-text">Leave either field blank for no corresponding lifetime limit. Counters are cumulative across rotation and reissue and never reset.</div>
+        </fieldset>
+        <fieldset class="col-md-6">
+          <legend class="h6">Per-capability budget</legend>
+          <div class="row g-2">
+            <div class="col-sm-6">
+              <label class="form-label" for="grant-capability-tokens">Total tokens</label>
+              <input id="grant-capability-tokens" class="form-control form-control-sm" type="number" min="1" name="per_token_max_total_tokens" placeholder="Unlimited">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label" for="grant-capability-requests">Total requests</label>
+              <input id="grant-capability-requests" class="form-control form-control-sm" type="number" min="1" name="per_token_max_requests" placeholder="Unlimited">
+            </div>
+          </div>
+          <div class="form-text">Leave either field blank for no corresponding per-capability limit. Limits apply independently to each rotated capability.</div>
+        </fieldset>
+        <div class="col-12"><button type="submit" class="btn btn-primary btn-sm">Create agent grant</button></div>
+      </form>
     </div>
   </div>
 </div>

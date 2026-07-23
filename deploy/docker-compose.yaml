@@ -1,29 +1,227 @@
-# Keycloak identity provider for the BYOK control plane (dev setup).
+# Phase 1 local production-shaped BYOK control plane.
 #
-#   docker compose -f deploy/docker-compose.yaml up
-#   → Keycloak on http://127.0.0.1:18080, realm `byok` auto-imported,
-#     confidential client llm-proxy-web / llm-proxy-web-secret,
-#     test user alice / password123.
+# Required operator inputs are paths to local, untracked files:
+#   TINYIDP_BOOTSTRAP_PASSWORD_FILE=/abs/path/owner-password.txt
+#   LLM_PROXY_BYOK_MASTER_KEY_FILE=/abs/path/master-key.txt
+#   LLM_PROXY_BYOK_SESSION_SECRET_FILE=/abs/path/session-secret.txt
+#   TINYIDP_RESOURCE_CLIENT_SECRET_FILE=/abs/path/resource-client-secret.txt
 #
-# Then:
-#   llm-proxy-server serve --profiles examples/profiles.yaml \
-#     --byok-db var/byok.db --byok-master-key $KEY \
-#     --byok-session-secret $SESSION_SECRET \
-#     --byok-oidc-issuer-url http://127.0.0.1:18080/realms/byok \
-#     --byok-oidc-client-id llm-proxy-web \
-#     --byok-oidc-client-secret llm-proxy-web-secret \
-#     --byok-public-url http://127.0.0.1:8080
+# The tiny-idp image is v0.0.5 at commit 486a3e3108f3eeda3d100f3db613aecc74f4d13d.
+# Its multi-platform OCI digest is immutable; do not replace it with `latest`
+# or a mutable tag.
+name: llm-proxy-byok
+
 services:
-  keycloak:
-    image: quay.io/keycloak/keycloak:26.2
-    command:
-      - start-dev
-      - --http-port=8080
-      - --import-realm
-    environment:
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
-    ports:
-      - "${KEYCLOAK_PORT:-18080}:8080"
+  volume-init:
+    image: alpine:3.22
+    user: "0:0"
+    command: >-
+      sh -ec 'chown -R 1000:1000 /caddy-data /caddy-config /tls-certs;
+      chown -R 65532:65532 /idp-state /proxy-state;
+      chmod 0755 /local-ca'
     volumes:
-      - ./keycloak/realm-byok.json:/opt/keycloak/data/import/realm-byok.json:ro
+      - caddy-data:/caddy-data
+      - caddy-config:/caddy-config
+      - local-ca:/local-ca
+      - tls-certs:/tls-certs
+      - idp-state:/idp-state
+      - proxy-state:/proxy-state
+    restart: "no"
+
+  local-cert-issuer:
+    image: llm-proxy-byok:phase1
+    user: "0:0"
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
+    entrypoint: ["/bin/sh", "/config/issue-local-cert.sh"]
+    command: []
+    volumes:
+      - caddy-authority:/authority:ro
+      - tls-certs:/certs
+      - ./tinyidp/issue-local-cert.sh:/config/issue-local-cert.sh:ro
+    restart: "no"
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    user: "1000:1000"
+    depends_on:
+      local-cert-issuer:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:18443:18443"
+    volumes:
+      - ./tinyidp/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+      - tls-certs:/certs:ro
+    networks:
+      edge:
+        ipv4_address: 172.30.0.2
+      proxy: {}
+
+  ca-export:
+    image: alpine:3.22
+    user: "0:0"
+    depends_on:
+      local-cert-issuer:
+        condition: service_completed_successfully
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        source=/authority/caddy/pki/authorities/local/root.crt
+        for attempt in $$(seq 1 60); do
+          if [ -s "$$source" ]; then
+            cp "$$source" /trust/caddy-local-root.crt
+            chmod 0444 /trust/caddy-local-root.crt
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "persistent local Caddy root certificate is unavailable" >&2
+        exit 1
+    volumes:
+      - caddy-authority:/authority:ro
+      - local-ca:/trust
+    restart: "no"
+    networks: [edge]
+
+  tinyidp-bootstrap:
+    image: ghcr.io/go-go-golems/tiny-idp@sha256:d5d9b78ff2eb6adb2e6d984ee9e913bf9570eea38380f153ca87a8a639e9a629
+    user: "65532:65532"
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
+    entrypoint: ["/bin/sh", "/config/bootstrap.sh"]
+    volumes:
+      - idp-state:/state
+      - ./tinyidp/bootstrap.sh:/config/bootstrap.sh:ro
+    secrets: [tinyidp_bootstrap_password, tinyidp_resource_client_secret]
+    restart: "no"
+
+  idp:
+    image: ghcr.io/go-go-golems/tiny-idp@sha256:d5d9b78ff2eb6adb2e6d984ee9e913bf9570eea38380f153ca87a8a639e9a629
+    user: "65532:65532"
+    depends_on:
+      ca-export:
+        condition: service_completed_successfully
+      tinyidp-bootstrap:
+        condition: service_completed_successfully
+    command:
+      - serve-production
+      - --addr=:8081
+      - --listener-mode=trusted-proxy-http
+      - --issuer=https://idp.localhost:18443
+      - --clients-file=/config/clients.json
+      - --theme-dir=/config
+      - --theme-catalog-file=/config/themes.json
+      - --signup-program-file=/config/open-signup.js
+      - --db=/state/tinyidp.sqlite
+      - --audit-path=/state/audit.jsonl
+      - --token-secret-file=/state/token-secret
+      - --trusted-proxy-cidrs=172.30.0.0/24
+    volumes:
+      - idp-state:/state
+      - ./tinyidp/clients.json:/config/clients.json:ro
+      - ./tinyidp/themes.json:/config/themes.json:ro
+      - ./tinyidp/llm-proxy.css:/config/llm-proxy.css:ro
+      - ./tinyidp/open-signup.js:/config/open-signup.js:ro
+    # The pinned production image intentionally contains no HTTP client. Its
+    # liveness check therefore tests the serving process; idp-readiness below
+    # performs the actual CA-verifying /readyz check before llm-proxy starts.
+    healthcheck:
+      test: ["CMD-SHELL", "kill -0 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    networks: [edge]
+
+  idp-readiness:
+    image: llm-proxy-byok:phase1
+    user: "65532:65532"
+    depends_on:
+      ca-export:
+        condition: service_completed_successfully
+      idp:
+        condition: service_started
+    entrypoint: ["/bin/sh", "/config/wait-ready.sh"]
+    extra_hosts:
+      - "idp.localhost:172.30.0.2"
+    volumes:
+      - local-ca:/trust:ro
+      - ./tinyidp/wait-ready.sh:/config/wait-ready.sh:ro
+    restart: "no"
+    networks: [edge]
+
+  llm-proxy:
+    image: llm-proxy-byok:phase1
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    user: "65532:65532"
+    depends_on:
+      ca-export:
+        condition: service_completed_successfully
+      idp-readiness:
+        condition: service_completed_successfully
+      volume-init:
+        condition: service_completed_successfully
+    command:
+      - serve
+      - --listen=:8080
+      - --profiles=/config/profiles.yaml
+      - --byok-db=/state/byok.sqlite
+      - --byok-master-key-file=/run/secrets/llm_proxy_byok_master_key
+      - --byok-session-secret-file=/run/secrets/llm_proxy_byok_session_secret
+      - --byok-oidc-issuer-url=https://idp.localhost:18443
+      - --byok-oidc-client-id=llm-proxy-web
+      - --byok-oidc-resource-client-id=llm-proxy-resource
+      - --byok-oidc-resource-client-secret-file=/run/secrets/tinyidp_resource_client_secret
+      - --byok-agent-audience=https://proxy.localhost:18443/agent/v1
+      - --byok-agent-allowed-clients=llm-proxy-agent
+      - --byok-public-url=https://proxy.localhost:18443
+    environment:
+      SSL_CERT_FILE: /trust/caddy-local-root.crt
+    extra_hosts:
+      - "idp.localhost:172.30.0.2"
+    volumes:
+      - proxy-state:/state
+      - local-ca:/trust:ro
+      - ../examples/profiles.yaml:/config/profiles.yaml:ro
+    secrets: [llm_proxy_byok_master_key, llm_proxy_byok_session_secret, tinyidp_resource_client_secret]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/readyz >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+    networks: [edge, proxy]
+
+networks:
+  edge:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+          ip_range: 172.30.0.128/25
+  proxy: {}
+
+volumes:
+  caddy-authority:
+    external: true
+    name: tinyidp-local-caddy-pki
+  caddy-data: {}
+  caddy-config: {}
+  local-ca: {}
+  tls-certs: {}
+  idp-state: {}
+  proxy-state: {}
+
+secrets:
+  tinyidp_bootstrap_password:
+    file: ${TINYIDP_BOOTSTRAP_PASSWORD_FILE:?set TINYIDP_BOOTSTRAP_PASSWORD_FILE to an untracked password file}
+  tinyidp_resource_client_secret:
+    file: ${TINYIDP_RESOURCE_CLIENT_SECRET_FILE:?set TINYIDP_RESOURCE_CLIENT_SECRET_FILE to an untracked resource-client secret file}
+  llm_proxy_byok_master_key:
+    file: ${LLM_PROXY_BYOK_MASTER_KEY_FILE:?set LLM_PROXY_BYOK_MASTER_KEY_FILE to an untracked master-key file}
+  llm_proxy_byok_session_secret:
+    file: ${LLM_PROXY_BYOK_SESSION_SECRET_FILE:?set LLM_PROXY_BYOK_SESSION_SECRET_FILE to an untracked session-secret file}

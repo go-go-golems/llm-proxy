@@ -35,6 +35,14 @@ func NewCommand() (*cobra.Command, error) {
 			},
 		},
 		{
+			use: "agent", short: "Authenticate a coding agent and manage its local capability cache",
+			children: []func() (cmds.Command, error){
+				func() (cmds.Command, error) { return NewAgentLoginCommand() },
+				func() (cmds.Command, error) { return NewAgentStatusCommand() },
+				func() (cmds.Command, error) { return NewAgentLogoutCommand() },
+			},
+		},
+		{
 			use: "credential", short: "Manage vault credentials (provider API keys)",
 			children: []func() (cmds.Command, error){
 				func() (cmds.Command, error) { return NewCredentialAddCommand() },

@@ -65,3 +65,8 @@ func NewRateLimited(rpm int64) *APIError {
 	return &APIError{Status: 429, Type: "tokens", Code: "rate_limit_exceeded",
 		Message: fmt.Sprintf("Rate limit exceeded (%d requests per minute).", rpm)}
 }
+
+func NewMeteringUnavailable() *APIError {
+	return &APIError{Status: 503, Type: "api_error", Code: "metering_unavailable",
+		Message: "Inference is temporarily unavailable because durable usage accounting is unhealthy."}
+}

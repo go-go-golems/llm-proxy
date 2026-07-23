@@ -2,6 +2,7 @@ package authmw_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -19,7 +20,7 @@ import (
 func setupToken(t *testing.T, st store.Store, mutate func(*store.Token)) (string, store.Token) {
 	t.Helper()
 	ctx := context.Background()
-	u, err := st.UpsertUser(ctx, store.User{OIDCSubject: "sub", Username: "alice"})
+	u, err := st.UpsertUser(ctx, store.User{OIDCIssuer: "urn:test", OIDCSubject: "sub", Username: "alice"})
 	if err != nil {
 		t.Fatalf("user: %v", err)
 	}
@@ -72,6 +73,33 @@ func TestTokenAuthRejectsMissingAndInvalid(t *testing.T) {
 	// Non-/v1 paths bypass enforcement.
 	if w := do(t, h, "/healthz", ""); w.Code != 200 {
 		t.Fatalf("healthz should pass: %d", w.Code)
+	}
+}
+
+type unavailableMeterHealth struct{}
+
+func (unavailableMeterHealth) BeforeInference(context.Context) error {
+	return errors.New("meter unavailable")
+}
+
+func TestTokenAuthMeterCircuitPreventsProviderDispatch(t *testing.T) {
+	st := memory.New()
+	raw, _ := setupToken(t, st, nil)
+	dispatched := 0
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		dispatched++
+		w.WriteHeader(http.StatusOK)
+	})
+	h := authmw.TokenAuthWithMeterHealth(st, unavailableMeterHealth{}, inner)
+	w := do(t, h, "/v1/chat/completions", raw)
+	if w.Code != http.StatusServiceUnavailable || !strings.Contains(w.Body.String(), "metering_unavailable") {
+		t.Fatalf("open meter circuit response: %d %s", w.Code, w.Body.String())
+	}
+	if dispatched != 0 {
+		t.Fatalf("provider path dispatched %d times while meter circuit was open", dispatched)
+	}
+	if w := do(t, h, "/healthz", ""); w.Code != http.StatusOK || dispatched != 1 {
+		t.Fatalf("non-data-plane route did not bypass meter circuit: status=%d dispatched=%d", w.Code, dispatched)
 	}
 }
 
@@ -139,6 +167,52 @@ func TestTokenAuthBudgets(t *testing.T) {
 	}
 	if w := do(t, h, "/v1/chat/completions", raw); w.Code != 429 || !strings.Contains(w.Body.String(), "budget_exhausted") {
 		t.Fatalf("over budget: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgentGrantCumulativeBudgetAcrossRotatedTokens(t *testing.T) {
+	st := memory.New()
+	ctx := context.Background()
+	user, err := st.UpsertUser(ctx, store.User{OIDCIssuer: "urn:test", OIDCSubject: "grant-user", Username: "grant-user"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	credential, err := st.CreateCredential(ctx, store.Credential{UserID: user.ID, Provider: "openai", APIType: "openai", Label: "agent", SecretCipher: []byte{1}, SecretLast4: "safe"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	maxRequests := int64(1)
+	grant, err := st.CreateAgentGrantAudited(ctx, store.AgentGrant{UserID: user.ID, Name: "laptop", CredentialIDs: []string{credential.ID}, AllowedModels: []string{"sonnet"}, TokenTTL: time.Hour, MaxActivePerInstance: 1, GrantMaxRequests: &maxRequests})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mint := func() (string, store.Token) {
+		raw, hash, err := tokens.Mint()
+		if err != nil {
+			t.Fatal(err)
+		}
+		expires := time.Now().UTC().Add(grant.TokenTTL)
+		token, err := st.MintToken(ctx, store.Token{UserID: user.ID, TokenHash: hash, Name: "device", CredentialIDs: grant.CredentialIDs, AllowedModels: grant.AllowedModels, AgentGrantID: grant.ID, IssueChannel: store.IssueChannelDevice, ExpiresAt: &expires})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return raw, token
+	}
+	raw1, _ := mint()
+	raw2, _ := mint()
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token, _ := authmw.TokenFrom(r.Context())
+		if err := st.RecordUsage(r.Context(), store.LedgerEntry{TokenID: token.ID, UserID: token.UserID, Model: "sonnet", Status: store.LedgerStatusOK}); err != nil {
+			t.Error(err)
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+	h := authmw.TokenAuth(st, inner)
+	if w := do(t, h, "/v1/chat/completions", raw1); w.Code != http.StatusOK {
+		t.Fatalf("first grant request = %d %s", w.Code, w.Body.String())
+	}
+	if w := do(t, h, "/v1/chat/completions", raw2); w.Code != http.StatusTooManyRequests || !strings.Contains(w.Body.String(), "budget_exhausted") {
+		t.Fatalf("rotated token reset grant budget: %d %s", w.Code, w.Body.String())
 	}
 }
 

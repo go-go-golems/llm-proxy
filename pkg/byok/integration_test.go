@@ -140,7 +140,7 @@ func buildStack(t *testing.T) stack {
 	t.Helper()
 	ctx := context.Background()
 	st := memory.New()
-	u, err := st.UpsertUser(ctx, store.User{OIDCSubject: "s", Username: "alice"})
+	u, err := st.UpsertUser(ctx, store.User{OIDCIssuer: "urn:test", OIDCSubject: "s", Username: "alice"})
 	if err != nil {
 		t.Fatalf("user: %v", err)
 	}

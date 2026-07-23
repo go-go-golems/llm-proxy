@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -18,6 +19,29 @@ func TestHealthz(t *testing.T) {
 	srv.Handler().ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+type fixedReadiness struct{ err error }
+
+func (r fixedReadiness) Ready(context.Context) error { return r.err }
+
+func TestReadyzReflectsDependencyReadinessWithoutChangingLiveness(t *testing.T) {
+	srv := New(Options{Readiness: fixedReadiness{err: errors.New("dependency unavailable")}})
+	for path, want := range map[string]int{"/readyz": http.StatusServiceUnavailable, "/healthz": http.StatusOK} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		w := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w, req)
+		if w.Code != want {
+			t.Fatalf("%s status = %d body=%s, want %d", path, w.Code, w.Body.String(), want)
+		}
+	}
+	ready := New(Options{Readiness: fixedReadiness{}})
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	w := httptest.NewRecorder()
+	ready.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"status":"ready"`) {
+		t.Fatalf("ready response: %d %s", w.Code, w.Body.String())
 	}
 }
 

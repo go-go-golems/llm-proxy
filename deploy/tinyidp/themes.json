@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "defaultTheme": "llm-proxy",
+  "themes": {
+    "llm-proxy": {
+      "productName": "LLM Proxy",
+      "stylesheet": "llm-proxy.css"
+    }
+  },
+  "clientThemes": {
+    "llm-proxy-web": "llm-proxy"
+  }
+}

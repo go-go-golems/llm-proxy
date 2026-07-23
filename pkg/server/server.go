@@ -30,6 +30,13 @@ type ModelLister interface {
 	ListModels(ctx context.Context) ([]ModelDescriptor, error)
 }
 
+// ReadinessChecker reports whether dependencies required for new work are
+// healthy. Liveness remains independent so an orchestrator does not restart a
+// healthy process solely because a durable dependency is temporarily down.
+type ReadinessChecker interface {
+	Ready(ctx context.Context) error
+}
+
 type ModelDescriptor struct {
 	ID      string `json:"id"`
 	Object  string `json:"object"`
@@ -40,6 +47,7 @@ type Options struct {
 	CompletionService     CompletionService
 	ChatCompletionService ChatCompletionService
 	ModelLister           ModelLister
+	Readiness             ReadinessChecker
 	MaxBodyBytes          int64
 }
 
@@ -47,6 +55,7 @@ type Server struct {
 	completionService     CompletionService
 	chatCompletionService ChatCompletionService
 	modelLister           ModelLister
+	readiness             ReadinessChecker
 	maxBodyBytes          int64
 }
 
@@ -63,12 +72,13 @@ func New(opts Options) *Server {
 	if chatService == nil {
 		chatService = StaticChatCompletionService{}
 	}
-	return &Server{completionService: service, chatCompletionService: chatService, modelLister: opts.ModelLister, maxBodyBytes: maxBodyBytes}
+	return &Server{completionService: service, chatCompletionService: chatService, modelLister: opts.ModelLister, readiness: opts.Readiness, maxBodyBytes: maxBodyBytes}
 }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
+	mux.HandleFunc("GET /readyz", s.handleReadyz)
 	mux.HandleFunc("GET /v1/models", s.handleModels)
 	mux.HandleFunc("POST /v1/completions", s.handleCompletions)
 	mux.HandleFunc("POST /v1/chat/completions", s.handleChatCompletions)
@@ -77,6 +87,16 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
+	if s.readiness != nil {
+		if err := s.readiness.Ready(r.Context()); err != nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ready"})
 }
 
 func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {

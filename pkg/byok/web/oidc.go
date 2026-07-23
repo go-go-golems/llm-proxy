@@ -17,13 +17,12 @@ import (
 )
 
 const (
-	stateCookie    = "llm_proxy_auth_state"
-	nonceCookie    = "llm_proxy_auth_nonce"
-	returnToCookie = "llm_proxy_auth_return_to"
-	authCookieAge  = 10 * time.Minute
+	authTransactionCookie = "llm_proxy_auth_transaction"
+	authCookieAge         = 10 * time.Minute
+	devIdentityIssuer     = "urn:llm-proxy:dev"
 )
 
-// OIDCConfig configures the relying-party flow against Keycloak (or any
+// OIDCConfig configures the relying-party flow against tiny-idp (or any
 // OIDC issuer with discovery).
 type OIDCConfig struct {
 	IssuerURL    string
@@ -33,15 +32,36 @@ type OIDCConfig struct {
 }
 
 type oidcClient struct {
-	provider *gooidc.Provider
-	config   oauth2.Config
-	verifier *gooidc.IDTokenVerifier
+	provider           *gooidc.Provider
+	config             oauth2.Config
+	verifier           *gooidc.IDTokenVerifier
+	issuer             string
+	endSessionEndpoint string
+	postLogoutRedirect string
 }
 
 func newOIDCClient(ctx context.Context, cfg OIDCConfig) (*oidcClient, error) {
 	provider, err := gooidc.NewProvider(ctx, cfg.IssuerURL)
 	if err != nil {
 		return nil, errors.Wrap(err, "OIDC discovery")
+	}
+	var metadata struct {
+		EndSessionEndpoint string `json:"end_session_endpoint"`
+	}
+	if err := provider.Claims(&metadata); err != nil {
+		return nil, errors.Wrap(err, "decode OIDC discovery metadata")
+	}
+	issuer := strings.TrimRight(cfg.IssuerURL, "/")
+	if metadata.EndSessionEndpoint != "" {
+		issuerURL, issuerErr := url.Parse(issuer)
+		endpointURL, endpointErr := url.Parse(metadata.EndSessionEndpoint)
+		if issuerErr != nil || endpointErr != nil {
+			return nil, errors.New("OIDC end-session endpoint must be a clean URL under the issuer origin")
+		}
+		issuerPath := strings.TrimRight(issuerURL.Path, "/") + "/"
+		if endpointURL.Scheme != issuerURL.Scheme || endpointURL.Host != issuerURL.Host || !strings.HasPrefix(endpointURL.Path, issuerPath) || endpointURL.RawQuery != "" || endpointURL.Fragment != "" || endpointURL.User != nil {
+			return nil, errors.New("OIDC end-session endpoint must be a clean URL under the issuer origin")
+		}
 	}
 	return &oidcClient{
 		provider: provider,
@@ -52,7 +72,10 @@ func newOIDCClient(ctx context.Context, cfg OIDCConfig) (*oidcClient, error) {
 			RedirectURL:  strings.TrimRight(cfg.PublicURL, "/") + "/auth/callback",
 			Scopes:       []string{gooidc.ScopeOpenID, "profile", "email"},
 		},
-		verifier: provider.Verifier(&gooidc.Config{ClientID: cfg.ClientID}),
+		verifier:           provider.Verifier(&gooidc.Config{ClientID: cfg.ClientID}),
+		issuer:             issuer,
+		endSessionEndpoint: metadata.EndSessionEndpoint,
+		postLogoutRedirect: strings.TrimRight(cfg.PublicURL, "/") + "/",
 	}, nil
 }
 
@@ -81,7 +104,7 @@ func clearShortCookie(w http.ResponseWriter, r *http.Request, name string) {
 	http.SetCookie(w, &http.Cookie{
 		Name: name, Value: "", Path: "/",
 		HttpOnly: true, SameSite: http.SameSiteLaxMode,
-		Secure: isSecureRequest(r), MaxAge: -1,
+		Secure: isSecureRequest(r), MaxAge: -1, Expires: time.Unix(1, 0),
 	})
 }
 
@@ -103,6 +126,11 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "OIDC login is not configured (set --byok-oidc-issuer-url)", http.StatusNotImplemented)
 		return
 	}
+	browserID, err := randomToken()
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
 	state, err := randomToken()
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -113,10 +141,20 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	setShortCookie(w, r, stateCookie, state)
-	setShortCookie(w, r, nonceCookie, nonce)
-	setShortCookie(w, r, returnToCookie, sanitizeReturnTo(r.URL.Query().Get("return_to")))
-	http.Redirect(w, r, s.oidc.config.AuthCodeURL(state, gooidc.Nonce(nonce)), http.StatusFound)
+	verifier := oauth2.GenerateVerifier()
+	now := time.Now().UTC()
+	if err := s.store.CreateAuthTransaction(r.Context(), store.AuthTransaction{
+		IDHash: hashOpaque(browserID), StateHash: hashOpaque(state), Nonce: nonce,
+		PKCEVerifier: verifier, ReturnTo: sanitizeReturnTo(r.URL.Query().Get("return_to")),
+		CreatedAt: now, ExpiresAt: now.Add(authCookieAge),
+	}); err != nil {
+		log.Error().Err(err).Msg("byok/web: create auth transaction failed")
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	setShortCookie(w, r, authTransactionCookie, browserID)
+	http.Redirect(w, r, s.oidc.config.AuthCodeURL(state,
+		gooidc.Nonce(nonce), oauth2.S256ChallengeOption(verifier)), http.StatusFound)
 }
 
 func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
@@ -124,18 +162,26 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "OIDC login is not configured", http.StatusNotImplemented)
 		return
 	}
-	defer func() {
-		clearShortCookie(w, r, stateCookie)
-		clearShortCookie(w, r, nonceCookie)
-		clearShortCookie(w, r, returnToCookie)
-	}()
+	defer clearShortCookie(w, r, authTransactionCookie)
 
-	stateC, err := r.Cookie(stateCookie)
-	if err != nil || stateC.Value == "" || r.URL.Query().Get("state") != stateC.Value {
-		http.Error(w, "state mismatch", http.StatusBadRequest)
+	browserCookie, err := r.Cookie(authTransactionCookie)
+	state := r.URL.Query().Get("state")
+	if err != nil || browserCookie.Value == "" || state == "" {
+		http.Error(w, "invalid or expired authorization transaction", http.StatusBadRequest)
 		return
 	}
-	token, err := s.oidc.config.Exchange(r.Context(), r.URL.Query().Get("code"))
+	transaction, err := s.store.ConsumeAuthTransaction(r.Context(),
+		hashOpaque(browserCookie.Value), hashOpaque(state), time.Now().UTC())
+	if err != nil {
+		http.Error(w, "invalid or expired authorization transaction", http.StatusBadRequest)
+		return
+	}
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		http.Error(w, "authorization code is missing", http.StatusBadRequest)
+		return
+	}
+	token, err := s.oidc.config.Exchange(r.Context(), code, oauth2.VerifierOption(transaction.PKCEVerifier))
 	if err != nil {
 		log.Error().Err(err).Msg("byok/web: code exchange failed")
 		http.Error(w, "code exchange failed", http.StatusBadGateway)
@@ -152,8 +198,11 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid id token", http.StatusUnauthorized)
 		return
 	}
-	nonceC, err := r.Cookie(nonceCookie)
-	if err != nil || idToken.Nonce != nonceC.Value {
+	if strings.TrimRight(idToken.Issuer, "/") != s.oidc.issuer {
+		http.Error(w, "invalid token issuer", http.StatusUnauthorized)
+		return
+	}
+	if idToken.Nonce != transaction.Nonce {
 		http.Error(w, "nonce mismatch", http.StatusBadRequest)
 		return
 	}
@@ -174,46 +223,63 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 		username = idToken.Subject
 	}
 	user, err := s.store.UpsertUser(r.Context(), store.User{
-		OIDCSubject: idToken.Subject, Username: username, Email: idClaims.Email,
+		OIDCIssuer: s.oidc.issuer, OIDCSubject: idToken.Subject,
+		Username: username, Email: idClaims.Email,
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("byok/web: user provisioning failed")
 		http.Error(w, "user provisioning failed", http.StatusInternalServerError)
 		return
 	}
-	if err := s.sessions.SetCookie(w, r, SessionClaims{
-		Subject: idToken.Subject, Username: user.Username, Email: user.Email, UserID: user.ID,
-	}); err != nil {
+	if err := s.createBrowserSession(r.Context(), w, r, user); err != nil {
+		log.Error().Err(err).Msg("byok/web: create browser session failed")
 		http.Error(w, "session error", http.StatusInternalServerError)
 		return
 	}
-	returnTo := "/app"
-	if c, err := r.Cookie(returnToCookie); err == nil {
-		returnTo = sanitizeReturnTo(c.Value)
-	}
-	// #nosec G710 -- returnTo is restricted by sanitizeReturnTo to a local
-	// absolute path and falls back to /app for absolute/protocol-relative URLs.
-	http.Redirect(w, r, returnTo, http.StatusFound)
+	// #nosec G710 -- the stored value was restricted by sanitizeReturnTo.
+	http.Redirect(w, r, transaction.ReturnTo, http.StatusFound)
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	if !s.sameOrigin(r) {
+		http.Error(w, "cross-origin request rejected", http.StatusForbidden)
+		return
+	}
+	if rawID, err := s.sessions.IDFromRequest(r); err == nil {
+		if err := s.store.RevokeSession(r.Context(), hashOpaque(rawID), time.Now().UTC()); err != nil && !errors.Is(err, store.ErrNotFound) {
+			log.Error().Err(err).Msg("byok/web: revoke browser session failed")
+			http.Error(w, "logout unavailable", http.StatusServiceUnavailable)
+			return
+		}
+	}
 	ClearCookie(w, r)
-	http.Redirect(w, r, "/app", http.StatusFound)
+	if s.oidc != nil && s.oidc.endSessionEndpoint != "" {
+		endpoint, err := url.Parse(s.oidc.endSessionEndpoint)
+		if err != nil {
+			http.Error(w, "logout unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		query := endpoint.Query()
+		query.Set("client_id", s.oidc.config.ClientID)
+		query.Set("post_logout_redirect_uri", s.oidc.postLogoutRedirect)
+		endpoint.RawQuery = query.Encode()
+		http.Redirect(w, r, endpoint.String(), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/app", http.StatusSeeOther)
 }
 
 // handleDevLogin creates a session without OIDC. Only mounted when
 // DevUser is explicitly configured; never enable in production.
 func (s *Server) handleDevLogin(w http.ResponseWriter, r *http.Request) {
 	user, err := s.store.UpsertUser(r.Context(), store.User{
-		OIDCSubject: "local:" + s.devUser, Username: s.devUser,
+		OIDCIssuer: devIdentityIssuer, OIDCSubject: s.devUser, Username: s.devUser,
 	})
 	if err != nil {
 		http.Error(w, "user provisioning failed", http.StatusInternalServerError)
 		return
 	}
-	if err := s.sessions.SetCookie(w, r, SessionClaims{
-		Subject: user.OIDCSubject, Username: user.Username, UserID: user.ID,
-	}); err != nil {
+	if err := s.createBrowserSession(r.Context(), w, r, user); err != nil {
 		http.Error(w, "session error", http.StatusInternalServerError)
 		return
 	}

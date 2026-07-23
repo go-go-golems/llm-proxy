@@ -33,6 +33,13 @@ WhenToUse: Read when preparing BYOK for a real deployment or a real IdP integrat
 
 ## Executive Summary
 
+> **Implementation update (2026-07-22):** The meter circuit-breaker gap is
+> complete through `LLM-PROXY-BYOK-TINYIDP` Phase 0. Persistent write failures
+> open immediately; transient SQLite busy/locked failures use a configurable
+> threshold (default 3); one committed write probe after a configurable cooldown
+> (default 5s) gates recovery; `/readyz` reflects circuit state; tests prove no
+> provider dispatch while open. Live OIDC and server-side sessions remain open.
+
 The LLM-PROXY-BYOK implementation (Phases 0–3) is functionally complete and tested, but three high-priority gaps stand between "working BYOK" and "deployable BYOK." Each is a documented open question from the diary or the PROJ note. This ticket tracks closing them.
 
 1. **Live Keycloak OIDC end-to-end.** The OIDC relying-party code (`pkg/byok/web/oidc.go`) is ported from the byok-host Keycloak demo (which *was* validated end-to-end against Keycloak) and is unit-tested, but it has never been driven against a live Keycloak in this repo. The `deploy/docker-compose.yaml` + realm import exist but are unverified against the ported code.

@@ -1,0 +1,3 @@
+/* Minimal reviewed local-development theme; no account or credential data. */
+:root { color-scheme: light dark; }
+body { font-family: system-ui, sans-serif; }

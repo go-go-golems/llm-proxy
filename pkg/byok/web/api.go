@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -35,7 +36,7 @@ func writeErr(w http.ResponseWriter, status int, msg string) {
 // covers the rest).
 func (s *Server) requireSession(next func(http.ResponseWriter, *http.Request, SessionClaims)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, err := s.sessions.ClaimsFromRequest(r)
+		claims, err := s.claimsFromRequest(r)
 		if err != nil {
 			writeErr(w, http.StatusUnauthorized, "not logged in")
 			return
@@ -61,6 +62,46 @@ func (s *Server) sameOrigin(r *http.Request) bool {
 		return true
 	}
 	return strings.EqualFold(parsed.Host, r.Host)
+}
+
+// --- browser sessions ---
+
+type sessionOut struct {
+	ID         string     `json:"id"`
+	Current    bool       `json:"current"`
+	CreatedAt  time.Time  `json:"created_at"`
+	LastSeenAt time.Time  `json:"last_seen_at"`
+	ExpiresAt  time.Time  `json:"expires_at"`
+	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
+}
+
+func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request, claims SessionClaims) {
+	sessions, err := s.store.ListSessionsByUser(r.Context(), claims.UserID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "list sessions failed")
+		return
+	}
+	out := make([]sessionOut, 0, len(sessions))
+	for _, session := range sessions {
+		out = append(out, sessionOut{
+			ID: session.ID, Current: session.IDHash == claims.SessionIDHash,
+			CreatedAt: session.CreatedAt, LastSeenAt: session.LastSeenAt,
+			ExpiresAt: session.ExpiresAt, RevokedAt: session.RevokedAt,
+		})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) handleRevokeSession(w http.ResponseWriter, r *http.Request, claims SessionClaims) {
+	if err := s.store.RevokeSessionByID(r.Context(), claims.UserID, r.PathValue("id"), time.Now().UTC()); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeErr(w, http.StatusNotFound, "session not found")
+			return
+		}
+		writeErr(w, http.StatusInternalServerError, "revoke session failed")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // --- credentials ---
@@ -119,7 +160,7 @@ func (s *Server) handleCreateCredential(w http.ResponseWriter, r *http.Request, 
 		writeErr(w, http.StatusInternalServerError, "encryption failed")
 		return
 	}
-	cred, err := s.store.CreateCredential(r.Context(), store.Credential{
+	cred, err := s.store.CreateCredentialAudited(r.Context(), store.Credential{
 		ID: credID, UserID: claims.UserID, Provider: req.Provider, APIType: req.APIType,
 		Label: req.Label, SecretCipher: cipherBlob, SecretLast4: vault.Last4(req.Secret),
 	})
@@ -127,13 +168,12 @@ func (s *Server) handleCreateCredential(w http.ResponseWriter, r *http.Request, 
 		writeErr(w, http.StatusInternalServerError, "store credential failed")
 		return
 	}
-	s.audit(r, claims, "credential.created", fmt.Sprintf(`{"credential_id":%q,"provider":%q}`, cred.ID, cred.Provider))
 	writeJSON(w, http.StatusCreated, credentialToOut(cred))
 }
 
 func (s *Server) handleDeleteCredential(w http.ResponseWriter, r *http.Request, claims SessionClaims) {
 	id := r.PathValue("id")
-	if err := s.store.DeleteCredential(r.Context(), claims.UserID, id); err != nil {
+	if err := s.store.DeleteCredentialAudited(r.Context(), claims.UserID, id); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			writeErr(w, http.StatusNotFound, "credential not found")
 			return
@@ -141,27 +181,186 @@ func (s *Server) handleDeleteCredential(w http.ResponseWriter, r *http.Request, 
 		writeErr(w, http.StatusInternalServerError, "delete failed")
 		return
 	}
-	s.audit(r, claims, "credential.deleted", fmt.Sprintf(`{"credential_id":%q}`, id))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// --- agent grants ---
+
+type agentGrantRequest struct {
+	Name                 string   `json:"name"`
+	CredentialIDs        []string `json:"credential_ids"`
+	AllowedModels        []string `json:"allowed_models"`
+	PerTokenMaxTokens    *int64   `json:"per_token_max_total_tokens"`
+	PerTokenMaxRequests  *int64   `json:"per_token_max_requests"`
+	RateLimitRPM         *int64   `json:"rate_limit_rpm"`
+	TokenTTLSeconds      int64    `json:"token_ttl_seconds"`
+	MaxActivePerInstance int      `json:"max_active_per_instance"`
+	GrantMaxTokens       *int64   `json:"grant_max_total_tokens"`
+	GrantMaxRequests     *int64   `json:"grant_max_requests"`
+}
+
+type agentGrantOut struct {
+	ID                   string     `json:"id"`
+	Name                 string     `json:"name"`
+	CredentialIDs        []string   `json:"credential_ids"`
+	AllowedModels        []string   `json:"allowed_models"`
+	PerTokenMaxTokens    *int64     `json:"per_token_max_total_tokens,omitempty"`
+	PerTokenMaxRequests  *int64     `json:"per_token_max_requests,omitempty"`
+	RateLimitRPM         *int64     `json:"rate_limit_rpm,omitempty"`
+	TokenTTLSeconds      int64      `json:"token_ttl_seconds"`
+	MaxActivePerInstance int        `json:"max_active_per_instance"`
+	GrantMaxTokens       *int64     `json:"grant_max_total_tokens,omitempty"`
+	GrantMaxRequests     *int64     `json:"grant_max_requests,omitempty"`
+	Enabled              bool       `json:"enabled"`
+	UsedTokens           int64      `json:"used_tokens"`
+	UsedRequests         int64      `json:"used_requests"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
+	RevokedAt            *time.Time `json:"revoked_at,omitempty"`
+}
+
+func (s *Server) requestToAgentGrant(userID, grantID string, request agentGrantRequest) (store.AgentGrant, error) {
+	grant := store.AgentGrant{
+		ID: grantID, UserID: userID, Name: strings.TrimSpace(request.Name),
+		CredentialIDs: request.CredentialIDs, AllowedModels: request.AllowedModels,
+		PerTokenMaxTokens: request.PerTokenMaxTokens, PerTokenMaxRequests: request.PerTokenMaxRequests,
+		RateLimitRPM: request.RateLimitRPM, TokenTTL: time.Duration(request.TokenTTLSeconds) * time.Second,
+		MaxActivePerInstance: request.MaxActivePerInstance, GrantMaxTokens: request.GrantMaxTokens,
+		GrantMaxRequests: request.GrantMaxRequests,
+	}
+	if grant.TokenTTL > s.agentMaxTokenTTL {
+		return store.AgentGrant{}, errors.Errorf("token_ttl_seconds exceeds operator maximum of %d", int64(s.agentMaxTokenTTL/time.Second))
+	}
+	for _, model := range grant.AllowedModels {
+		if _, allowed := s.allowedGrantModels[model]; !allowed {
+			return store.AgentGrant{}, errors.Errorf("model %q is not an available profile", model)
+		}
+	}
+	if err := store.ValidateAgentGrantPolicy(grant); err != nil {
+		return store.AgentGrant{}, err
+	}
+	return grant, nil
+}
+
+func (s *Server) agentGrantToOut(ctx *http.Request, grant store.AgentGrant) agentGrantOut {
+	counters, err := s.store.GetAgentGrantCounters(ctx.Context(), grant.ID)
+	if err != nil {
+		counters = store.AgentGrantCounters{}
+	}
+	return agentGrantOut{
+		ID: grant.ID, Name: grant.Name, CredentialIDs: grant.CredentialIDs, AllowedModels: grant.AllowedModels,
+		PerTokenMaxTokens: grant.PerTokenMaxTokens, PerTokenMaxRequests: grant.PerTokenMaxRequests,
+		RateLimitRPM: grant.RateLimitRPM, TokenTTLSeconds: int64(grant.TokenTTL / time.Second),
+		MaxActivePerInstance: grant.MaxActivePerInstance, GrantMaxTokens: grant.GrantMaxTokens,
+		GrantMaxRequests: grant.GrantMaxRequests, Enabled: grant.Enabled,
+		UsedTokens: counters.TotalTokens, UsedRequests: counters.TotalRequests,
+		CreatedAt: grant.CreatedAt, UpdatedAt: grant.UpdatedAt, RevokedAt: grant.RevokedAt,
+	}
+}
+
+func decodeAgentGrantRequest(w http.ResponseWriter, r *http.Request) (agentGrantRequest, error) {
+	var request agentGrantRequest
+	err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&request)
+	return request, err
+}
+
+func (s *Server) handleGrantModels(w http.ResponseWriter, _ *http.Request, _ SessionClaims) {
+	models := make([]string, 0, len(s.allowedGrantModels))
+	for model := range s.allowedGrantModels {
+		models = append(models, model)
+	}
+	sort.Strings(models)
+	writeJSON(w, http.StatusOK, models)
+}
+
+func (s *Server) handleListAgentGrants(w http.ResponseWriter, r *http.Request, claims SessionClaims) {
+	grants, err := s.store.ListAgentGrantsByUser(r.Context(), claims.UserID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "list agent grants failed")
+		return
+	}
+	out := make([]agentGrantOut, 0, len(grants))
+	for _, grant := range grants {
+		out = append(out, s.agentGrantToOut(r, grant))
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) handleCreateAgentGrant(w http.ResponseWriter, r *http.Request, claims SessionClaims) {
+	request, err := decodeAgentGrantRequest(w, r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	grant, err := s.requestToAgentGrant(claims.UserID, "", request)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	created, err := s.store.CreateAgentGrantAudited(r.Context(), grant)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "create agent grant failed")
+		return
+	}
+	writeJSON(w, http.StatusCreated, s.agentGrantToOut(r, created))
+}
+
+func (s *Server) handleUpdateAgentGrant(w http.ResponseWriter, r *http.Request, claims SessionClaims) {
+	request, err := decodeAgentGrantRequest(w, r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	grant, err := s.requestToAgentGrant(claims.UserID, r.PathValue("id"), request)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	updated, err := s.store.UpdateAgentGrantAudited(r.Context(), grant)
+	if errors.Is(err, store.ErrNotFound) {
+		writeErr(w, http.StatusNotFound, "agent grant not found")
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "update agent grant failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, s.agentGrantToOut(r, updated))
+}
+
+func (s *Server) handleRevokeAgentGrant(w http.ResponseWriter, r *http.Request, claims SessionClaims) {
+	if err := s.store.RevokeAgentGrantAudited(r.Context(), claims.UserID, r.PathValue("id")); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeErr(w, http.StatusNotFound, "agent grant not found or already revoked")
+			return
+		}
+		writeErr(w, http.StatusInternalServerError, "revoke agent grant failed")
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
 // --- tokens ---
 
 type tokenOut struct {
-	ID            string     `json:"id"`
-	Name          string     `json:"name"`
-	CredentialIDs []string   `json:"credential_ids"`
-	AllowedModels []string   `json:"allowed_models"`
-	MaxTokens     *int64     `json:"max_total_tokens,omitempty"`
-	MaxRequests   *int64     `json:"max_requests,omitempty"`
-	RateLimitRPM  *int64     `json:"rate_limit_rpm,omitempty"`
-	ExpiresAt     *time.Time `json:"expires_at,omitempty"`
-	RevokedAt     *time.Time `json:"revoked_at,omitempty"`
-	LastUsedAt    *time.Time `json:"last_used_at,omitempty"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UsedTokens    int64      `json:"used_tokens"`
-	UsedRequests  int64      `json:"used_requests"`
-	Token         string     `json:"token,omitempty"` // set ONLY in the mint response
+	ID               string             `json:"id"`
+	Name             string             `json:"name"`
+	CredentialIDs    []string           `json:"credential_ids"`
+	AgentGrantID     string             `json:"agent_grant_id,omitempty"`
+	IssueChannel     store.IssueChannel `json:"issue_channel"`
+	SourceClientID   string             `json:"source_client_id,omitempty"`
+	ClientInstanceID string             `json:"client_instance_id,omitempty"`
+	AllowedModels    []string           `json:"allowed_models"`
+	MaxTokens        *int64             `json:"max_total_tokens,omitempty"`
+	MaxRequests      *int64             `json:"max_requests,omitempty"`
+	RateLimitRPM     *int64             `json:"rate_limit_rpm,omitempty"`
+	ExpiresAt        *time.Time         `json:"expires_at,omitempty"`
+	RevokedAt        *time.Time         `json:"revoked_at,omitempty"`
+	LastUsedAt       *time.Time         `json:"last_used_at,omitempty"`
+	CreatedAt        time.Time          `json:"created_at"`
+	UsedTokens       int64              `json:"used_tokens"`
+	UsedRequests     int64              `json:"used_requests"`
+	Token            string             `json:"token,omitempty"` // set ONLY in the mint response
 }
 
 func (s *Server) tokenToOut(r *http.Request, t store.Token) tokenOut {
@@ -171,6 +370,8 @@ func (s *Server) tokenToOut(r *http.Request, t store.Token) tokenOut {
 	}
 	return tokenOut{
 		ID: t.ID, Name: t.Name, CredentialIDs: t.CredentialIDs, AllowedModels: t.AllowedModels,
+		AgentGrantID: t.AgentGrantID, IssueChannel: t.IssueChannel,
+		SourceClientID: t.SourceClientID, ClientInstanceID: t.ClientInstanceID,
 		MaxTokens: t.MaxTotalTokens, MaxRequests: t.MaxRequests, RateLimitRPM: t.RateLimitRPM,
 		ExpiresAt: t.ExpiresAt, RevokedAt: t.RevokedAt, LastUsedAt: t.LastUsedAt, CreatedAt: t.CreatedAt,
 		UsedTokens: counters.TotalTokens, UsedRequests: counters.TotalRequests,
@@ -241,12 +442,11 @@ func (s *Server) handleMintToken(w http.ResponseWriter, r *http.Request, claims 
 		exp := time.Now().UTC().Add(time.Duration(req.ExpiresDays) * 24 * time.Hour)
 		tok.ExpiresAt = &exp
 	}
-	minted, err := s.store.MintToken(r.Context(), tok)
+	minted, err := s.store.MintTokenAudited(r.Context(), tok)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "mint failed")
 		return
 	}
-	s.audit(r, claims, "token.minted", fmt.Sprintf(`{"token_id":%q,"name":%q}`, minted.ID, req.Name))
 	out := s.tokenToOut(r, minted)
 	out.Token = raw // the only place the plaintext ever appears
 	writeJSON(w, http.StatusCreated, out)
@@ -254,7 +454,7 @@ func (s *Server) handleMintToken(w http.ResponseWriter, r *http.Request, claims 
 
 func (s *Server) handleRevokeToken(w http.ResponseWriter, r *http.Request, claims SessionClaims) {
 	id := r.PathValue("id")
-	if err := s.store.RevokeToken(r.Context(), claims.UserID, id); err != nil {
+	if err := s.store.RevokeTokenAudited(r.Context(), claims.UserID, id); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			writeErr(w, http.StatusNotFound, "token not found or already revoked")
 			return
@@ -262,7 +462,6 @@ func (s *Server) handleRevokeToken(w http.ResponseWriter, r *http.Request, claim
 		writeErr(w, http.StatusInternalServerError, "revoke failed")
 		return
 	}
-	s.audit(r, claims, "token.revoked", fmt.Sprintf(`{"token_id":%q}`, id))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -320,12 +519,4 @@ func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request, claims Sess
 		})
 	}
 	writeJSON(w, http.StatusOK, out)
-}
-
-func (s *Server) audit(r *http.Request, claims SessionClaims, eventType, payload string) {
-	if err := s.store.AppendEvent(r.Context(), store.AuditEvent{
-		UserID: claims.UserID, EventType: eventType, Payload: []byte(payload),
-	}); err != nil {
-		log.Warn().Err(err).Str("event", eventType).Msg("byok/web: audit append failed")
-	}
 }
