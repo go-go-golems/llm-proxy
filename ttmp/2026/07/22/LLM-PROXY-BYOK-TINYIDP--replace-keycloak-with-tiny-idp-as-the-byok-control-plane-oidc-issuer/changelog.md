@@ -109,3 +109,12 @@ Step 10: validated one bounded real Umans GLM 5.2 Chat Completions request with 
 
 - /home/manuel/code/wesen/go-go-golems/llm-proxy/README.md — Exact live-provider compatibility evidence and limits
 - /home/manuel/code/wesen/go-go-golems/llm-proxy/pkg/byok/engines/provider.go — Credential injection path exercised by the live smoke
+
+## 2026-07-23
+
+Step 11: live-tested token ceiling, RPM, per-capability requests, and cumulative grant requests across rotation against Umans GLM 5.2; six provider calls used 257 tokens and four pre-dispatch rejections were audited
+
+### Related Files
+
+- /home/manuel/code/wesen/go-go-golems/llm-proxy/README.md — Documented exact live limit semantics including one-request token-ceiling overshoot
+- /home/manuel/code/wesen/go-go-golems/llm-proxy/pkg/byok/policy/policy.go — Budget predicates exercised against live provider traffic

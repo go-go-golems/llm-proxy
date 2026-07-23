@@ -1299,3 +1299,98 @@ Pinocchio umans-glm-5.2 metadata
 -> HTTP 200 / live smoke ok / usage 19+24=43
 -> durable ledger -> revoke -> 401 -> credential delete -> cleanup
 ```
+
+## Step 11: Exercise live token, request, rate, and rotated-grant limits
+
+This step tests the live enforcement boundaries omitted from Step 10. It uses the same exact Umans GLM 5.2 target, but separates per-capability token exhaustion, RPM throttling, per-capability request exhaustion, and cumulative grant exhaustion across rotation so each rejection can be attributed to one policy.
+
+The working rule is one bounded provider request to cross or reach each threshold, followed by requests that must be rejected before engine/provider dispatch. Evidence will include HTTP/error codes, durable counters and ledger rows, rotation behavior, runtime secret scans, revocation/deletion, and complete transient cleanup.
+
+### Prompt Context
+
+**User prompt (verbatim):** "ok, live test it. Keep a detailed diary asyou work (and back fill if possible)"
+
+**Assistant interpretation:** Run real Umans requests to cross every important capability/grant/rate limit, prove subsequent rejection and rotation semantics, and maintain detailed chronological evidence including backfilled context from the earlier live smoke.
+
+**Inferred user intent:** Verify that limits work in the real provider path rather than only in unit tests, while leaving an audit-quality continuation record.
+
+### What I did
+
+- Backfilled Step 10 with the complete first live-request setup, credential-handling, accounting, revocation, secret-scan, and cleanup evidence before beginning this step.
+- Defined four isolated cases: token ceiling, RPM, per-capability requests, and cumulative grant requests across stable-installation rotation.
+- Started clean project volumes with a keyless `umans-glm-5.2` profile and imported the existing Pinocchio credential through the encrypted browser vault without printing it.
+- Minted a web capability with `max_total_tokens=1`: its first real request used 37 tokens; the next returned 429 `budget_exhausted` in 3ms.
+- Minted a web capability with `rate_limit_rpm=1`: its first real request used 35 tokens; the immediate next request returned 429 `rate_limit_exceeded` in 3ms.
+- Created a grant with `per_token_max_requests=1` and cumulative maximum 3. Its first device capability used 39 tokens, the second request returned 429 in 4ms, rotation revoked the first capability, and the replacement successfully used 45 tokens.
+- Created a grant with cumulative `grant_max_requests=1`; after one 50-token request, a reissue attempt failed with `requested agent grant is unavailable`.
+- Added a corrected cumulative-rotation sequence: issue capability A, rotate to B before usage, verify A revoked/B empty, execute one 51-token request on B, then prove a third issuance fails because the one-request grant counter survived rotation.
+- Queried the copied SQLite evidence: six successful live-provider ledger rows totaled 111 prompt + 146 completion = 257 tokens, and four `inference.rejected` audit events recorded three `budget_exhausted` and one `rate_limit_exceeded` decisions.
+- Revoked every test grant, deleted the provider credential, and scanned runtime logs before cleanup.
+
+### Why
+
+- Step 10 configured limits but revoked after one request without reaching them.
+- Isolated policies prevent one exhausted limit from hiding a defect in another.
+
+### What worked
+
+- Every successful request reached Umans and returned HTTP 200; six durable usage rows exactly matched 257 total provider-reported tokens.
+- Token exhaustion and RPM each rejected the immediate follow-up in 3ms with no usage object and no additional ledger row.
+- Per-capability request state reset only on successful rotation: capability A remained at one request and became revoked; capability B began at zero and successfully recorded its own request. Grant counters correctly accumulated both requests (84 tokens) across those capabilities.
+- The corrected cumulative grant had a zero-use revoked capability A and a one-request active capability B after pre-use rotation. Its grant counter was one request/51 tokens, and post-exhaustion issuance was denied.
+- All policy rejections produced typed `inference.rejected` audit events; denied requests never produced successful usage rows.
+- Runtime logs contained no Umans key, deployment secret, broker capability, or private key.
+- Grant revocations and credential deletion all returned 204.
+- All test containers, project volumes, cache files, copied databases, logs, profiles, secrets, and clipboard contents were removed; the external workstation CA volume remained.
+
+### What didn't work
+
+- The first combined Playwright device-login fill submitted an invalid password and the page returned `Invalid login or password.` The desktop clipboard had been overwritten; resetting it from the protected bootstrap-password file and separating focus, paste, and click operations succeeded.
+- The first cumulative test consumed the grant before attempting rotation. The later CLI exchange correctly failed with `Error: requested agent grant is unavailable`, so it proved reissue could not reset an exhausted grant but did not prove successful pre-usage rotation. A fresh grant was added and tested with issue → rotate → consume → denied reissue ordering.
+- The first SQLite audit query used a guessed `payload_json` column and failed with `sqlite3.OperationalError: no such column: payload_json`. `PRAGMA table_info(audit_events)` showed the real column is `payload`; the corrected query returned all four rejection events.
+- One GLM response consumed all 32 completion tokens in reasoning and returned empty visible content. HTTP 200 and usage still proved dispatch/accounting; exact-text assertions were retained only for responses that emitted visible content.
+
+### What I learned
+
+- Token ceilings are post-accounting hard stops: the first request may exceed a low ceiling because final usage is unknown, but every later request rejects before dispatch.
+- Request and token exhaustion share the public code/type `budget_exhausted`/`tokens`; the message distinguishes `Request budget exhausted (N requests).` This is functional but less machine-specific than dedicated request-budget codes.
+- Exhausted grants are filtered out before capability exchange, so reissue fails at grant selection rather than issuing an already unusable token.
+- To demonstrate both rotation and cumulative persistence, rotation must occur before consuming the final cumulative request.
+- Rejected middleware requests create audit events rather than usage-ledger rows; successful provider calls alone populate the durable usage ledger.
+
+### What was tricky to build
+
+- The provider reports usage only after completion, so a token ceiling cannot reserve unknown completion usage prospectively. The first request may cross the ceiling; the next request must reject before dispatch.
+
+### What warrants a second pair of eyes
+
+- Review whether post-accounting token ceilings are the intended product semantics or whether future request-side token reservation should use prompt estimation plus `max_tokens`.
+
+### What should be done in the future
+
+- Consider distinct public error codes/types for request-budget versus token-budget exhaustion.
+- Decide whether future token reservation should conservatively account for prompt estimates plus requested `max_tokens` to prevent a single request crossing a hard currency/token ceiling.
+- Add this live matrix as an opt-in operator smoke script only if a secure credential handoff and explicit cost gate can be preserved.
+
+### Code review instructions
+
+- Review `pkg/byok/authmw/middleware.go` and `pkg/byok/policy/policy.go` for check ordering before comparing live evidence.
+- Verify the six successful ledger rows total 111 prompt, 146 completion, and 257 tokens; no rejected request appears as a successful usage row.
+- Verify four audit rejections: three `budget_exhausted` and one `rate_limit_exceeded`.
+- For rotation semantics, compare the per-capability grant (revoked A: 1 request/39 tokens; active B: 1 request/45 tokens; grant: 2 requests/84 tokens) with corrected cumulative rotation (revoked A: zero; active B: 1 request/51 tokens; grant: 1 request/51 tokens; next issuance denied).
+
+### Technical details
+
+```text
+case A: max_total_tokens=1
+  200 / 37 tokens / 2735ms -> 429 budget_exhausted / 3ms
+case B: rate_limit_rpm=1
+  200 / 35 tokens / 6786ms -> 429 rate_limit_exceeded / 3ms
+case C: per_token_max_requests=1, grant_max_requests=3
+  A: 200 / 39 -> 429 / 4ms -> rotate
+  B: 200 / 45; grant aggregate = 2 requests / 84 tokens
+case D: grant_max_requests=1
+  corrected order: issue A -> rotate B (A revoked at zero)
+  -> B: 200 / 51 -> reissue denied as unavailable
+aggregate live cost: 6 requests / 257 tokens
+```

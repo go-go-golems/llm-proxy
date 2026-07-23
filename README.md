@@ -312,8 +312,13 @@ surface. A bounded live acceptance on 2026-07-23 validated the
 `umans-glm-5.2` Pinocchio profile through `/v1/chat/completions`: the provider
 returned HTTP 200 with the requested content, durable usage recorded 19 prompt
 and 24 completion tokens, revocation changed subsequent capability access to
-401, and the credential was deleted afterward. This is an exact tested target,
-not a claim about other Umans models or clients.
+401, and the credential was deleted afterward. A follow-up live matrix verified
+429 rejection for exhausted token, request, cumulative-grant, and RPM limits;
+per-capability request budgets reset on rotation while grant counters persisted.
+Token ceilings are post-accounting stops: one completed request can cross the
+ceiling because final provider usage is unknown, and the next request is
+rejected before dispatch. This is an exact tested target, not a claim about
+other Umans models or clients.
 
 ---
 
