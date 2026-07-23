@@ -268,3 +268,113 @@ MVP 3: health-only loopback metrics (no request instrumentation)
 MVP 4: bounded request/rejection metrics
 MVP 5+: OIDC/device/inventory, then optional dashboards/rollups
 ```
+
+## Step 3: Correct the Phase 4 instrumentation and cardinality design after review
+
+Code review found three concrete flaws in the proposed Phase 4 design. The
+single request vector was technically bounded but still multiplied into 28,080
+series, the metering recorder did not have the route or duration fields the
+design asked it to emit, and the existing rejection audit helper did not cover
+all middleware returns while also applying to non-inference `/v1/models`.
+
+The revised design now splits metrics into small semantic families, emits timed
+completion observations at the four runtime provider call sites, and classifies
+the two exact inference routes before instrumenting every middleware rejection
+return. The full custom-metric budget is at most 134 series instead of tens of
+thousands.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Address code review comments https://github.com/go-go-golems/llm-proxy/pull/8"
+
+**Assistant interpretation:** Inspect every review thread on PR #8, verify each claim against source, revise the design and diary, validate the ticket, and respond with concrete resolution evidence.
+
+**Inferred user intent:** Make the deferred implementation guide accurate and operationally safe before it is merged and handed to an intern.
+
+### What I did
+
+- Retrieved all PR reviews and three inline Codex comments.
+- Re-read `TokenAuthWithMeterHealth`, both runtime completion services, and the
+  `UsageRecorder` contract.
+- Replaced the combined request metric with separate completion, rejection,
+  token, and duration families.
+- Removed profile and issue-channel labels from MVP metrics.
+- Added explicit maximum series arithmetic: 8 completion, 24 rejection, 6
+  token, and 96 histogram series, at most 134 total.
+- Moved completed observations from `meter.Recorder` to the four route-aware
+  `RunInferenceWithResult` call sites in the two runtime services.
+- Required exact POST route classification and metrics calls at every early
+  middleware return while preserving the narrower known-token audit helper.
+- Added `/v1/models` exclusion and missing/invalid-key/internal-error tests.
+
+### Why
+
+- A finite metric can still be operationally excessive; boundedness needs a
+  reviewed numerical budget rather than only finite label vocabularies.
+- Route and duration must be captured where they are actually available.
+- Audit and metric emission have different identity and route requirements and
+  cannot safely share one helper.
+
+### What worked
+
+- The source confirmed all three review findings and provided clean correction
+  points without changing the durable accounting design.
+- Splitting event families reduced the proposed series budget by more than two
+  orders of magnitude while preserving exact profile/channel detail in the
+  authenticated summary API.
+
+### What didn't work
+
+- The original proposed vector could produce `2 × 3 × 9 × 2 × 4 × 65 = 28,080`
+  series despite each individual label being bounded.
+- `runtime.UsageRecorder.RecordInference` had no route or duration, so the
+  original `meter.Recorder` placement could not implement its documented event.
+- The `rejected` audit helper omitted pre-token failures and could run on
+  `/v1/models`, so it was not a valid inference-metrics seam.
+
+### What I learned
+
+- Cardinality review must multiply labels and histogram bucket series, not just
+  approve each label independently.
+- Exact route constants belong at route-aware runtime call sites; raw paths
+  should never become labels.
+- A security audit helper may intentionally require an identified token, while
+  anonymous rejection metrics must work before identity is known.
+
+### What was tricky to build
+
+- Streaming duration must be measured inside the producer goroutine until
+  `RunInferenceWithResult` returns; measuring the method return would only time
+  channel setup.
+- Middleware protects all `/v1/*` routes, so route classification must be exact
+  and independent of the broad authentication prefix.
+
+### What warrants a second pair of eyes
+
+- Confirm that the nine proposed duration buckets are justified before adding
+  the histogram; counters can ship without it.
+- Confirm the final ≤12 rejection reason vocabulary maps only distinct operator
+  actions and not merely distinct user-facing errors.
+
+### What should be done in the future
+
+- During Phase 4 implementation, make the 134-series ceiling executable and
+  require review for every added label, reason, or histogram bucket.
+
+### Code review instructions
+
+- Review design sections 10.1–10.5 first, then compare them with
+  `pkg/runtime/chat_service.go`, `pkg/runtime/completion_service.go`, and
+  `pkg/byok/authmw/middleware.go`.
+- Verify `/v1/models` rejection is excluded and every exact inference-route
+  early return is covered once.
+
+### Technical details
+
+```text
+completed: 2 routes × 2 outcomes × 2 stream values = 8
+rejected:  2 routes × ≤12 reasons = 24
+tokens:    3 kinds × 2 outcomes = 6
+duration:  8 label sets × (9 configured buckets + +Inf + sum + count) = 96
+maximum custom metric series = 134
+```

@@ -322,7 +322,7 @@ pkg/byok/usage/
 pkg/byok/observability/
   metrics.go           # metric vectors and Observer methods
   health_collector.go  # reads meter.Health Snapshot
-  labels.go            # closed vocabularies and profile normalization
+  labels.go            # closed route, outcome, and reason vocabularies
   server.go            # custom registry + loopback listener lifecycle
 ```
 
@@ -597,92 +597,158 @@ plus omission of unavailable subsystem metrics.
 
 ## 10. MVP 4: bounded inference and rejection metrics
 
-### 10.1 Observer contract
+### 10.1 Observer contracts and exact completion seam
 
-Keep Prometheus out of runtime interfaces by introducing a domain observer:
+Keep Prometheus out of runtime interfaces by introducing two small domain
+events. Completion and rejection have different fields and therefore must not
+share one maximally labelled vector:
 
 ```go
 type InferenceOutcome string
 const (
-    OutcomeOK       InferenceOutcome = "ok"
-    OutcomeError    InferenceOutcome = "error"
-    OutcomeRejected InferenceOutcome = "rejected"
+    OutcomeOK    InferenceOutcome = "ok"
+    OutcomeError InferenceOutcome = "error"
 )
 
-type InferenceObservation struct {
-    ProfileSlug     string
-    Route           string
-    Outcome         InferenceOutcome
-    Reason          string
-    Streamed        bool
-    IssueChannel    store.IssueChannel
-    PromptTokens    int64
+type CompletionObservation struct {
+    Route            string
+    Outcome          InferenceOutcome
+    Streamed         bool
+    PromptTokens     int64
     CompletionTokens int64
-    CachedTokens    int64
-    Duration        time.Duration
+    CachedTokens     int64
+    Duration         time.Duration
+}
+
+type RejectionObservation struct {
+    Route  string
+    Reason string
 }
 
 type Observer interface {
-    ObserveInference(InferenceObservation)
+    ObserveCompletion(context.Context, CompletionObservation)
+    ObserveRejection(context.Context, RejectionObservation)
 }
 ```
 
 An adapter in `pkg/byok/observability` converts observations to Prometheus.
 Tests can use a recording fake without importing Prometheus.
 
-### 10.2 Avoiding double counting
+The existing `runtime.UsageRecorder.RecordInference` cannot produce a correct
+completion observation: it receives no route or duration, and Chat Completions
+and legacy Completions intentionally call the same interface. Do **not** emit
+completion metrics from `meter.Recorder`. Instead, add an `Observer` field to
+both `GeppettoChatCompletionService` and `GeppettoCompletionService`. At each of
+their non-streaming and streaming `RunInferenceWithResult` call sites:
 
-- accepted provider attempts emit once after completion through the usage
-  recording seam;
-- policy/auth/budget/rate rejections emit once in middleware before returning;
-- a request that reaches a provider and returns an error is `outcome="error"`,
-  not `rejected`;
-- malformed HTTP bodies that fail before BYOK context may be counted in generic
-  route metrics later, but are not BYOK inference observations in MVP 4.
+1. capture `started := time.Now()` immediately before provider execution;
+2. execute inference;
+3. call the existing usage recorder with authoritative usage;
+4. call `ObserveCompletion` with a compile-time route constant and
+   `time.Since(started)`.
 
-### 10.3 Label policy
+For streaming, observe when `RunInferenceWithResult` returns inside the producer
+goroutine, not when the HTTP handler first returns the channel. This measures
+provider execution through the final provider result. Route constants are
+`chat_completions` and `completions`; they are never derived from raw URL text.
 
-Allowed labels:
+### 10.2 Exact rejection seam and avoiding double counting
 
-| Label | Values | Bound |
-| --- | --- | --- |
-| `route` | `chat_completions`, `completions` | 2 |
-| `outcome` | `ok`, `error`, `rejected` | 3 |
-| `reason` | fixed enum plus `none`, `other` | small fixed set |
-| `streamed` | `true`, `false` | 2 |
-| `issue_channel` | `web`, `operator_cli`, `device_exchange`, `unknown` | 4 |
-| `profile` | startup-configured allowlist capped at 64; overflow maps to `other` | ≤65 |
+`TokenAuthWithMeterHealth` protects every `/v1/*` route, including `/v1/models`.
+Its current `rejected` helper is an audit helper for failures after a token has
+been loaded; it does not run for metering-unavailable, missing-key, invalid-key,
+or token-store errors. Therefore it is not a complete or correctly scoped
+metrics seam.
 
-Forbidden labels include `user_id`, `token_id`, `grant_id`, `credential_id`,
-`source_client_id`, `client_instance_id`, issuer, subject, email, username, IP,
-raw URL/path, raw error, request ID, and provider key suffix.
+Add an exact classifier such as:
 
-The theoretical worst-case series for the main request counter is bounded and
-should be tested. Do not mechanically apply every label to every metric; use the
-fewest useful dimensions.
-
-### 10.4 Metrics
-
-```text
-llm_proxy_byok_inference_requests_total{
-  route, outcome, reason, streamed, issue_channel, profile
-}
-
-llm_proxy_byok_inference_tokens_total{
-  kind="prompt|completion|cached", outcome, streamed, profile
-}
-
-llm_proxy_byok_inference_duration_seconds{
-  route, outcome, streamed, profile
+```go
+func inferenceRoute(r *http.Request) (string, bool) {
+    if r.Method != http.MethodPost {
+        return "", false
+    }
+    switch r.URL.Path {
+    case "/v1/chat/completions":
+        return "chat_completions", true
+    case "/v1/completions":
+        return "completions", true
+    default:
+        return "", false
+    }
 }
 ```
+
+Classify once at middleware entry. At **every** early return in
+`TokenAuthWithMeterHealth`, call a dedicated `observeRejection` only when the
+classifier returned true. This includes metering unavailable, missing/invalid
+API key, token/grant/counter-store internal errors, unusable token/grant, rate
+limit, and budget failures. Keep the existing `rejected` audit helper for the
+known-token cases it currently records; do not overload it with metrics.
+`/v1/models` and any future non-inference `/v1/*` route must emit no inference
+metric.
+
+Double-counting rules are then mechanical:
+
+- each provider attempt emits one completion observation at its runtime service
+  call site;
+- each pre-dispatch failure on one of the two exact inference routes emits one
+  rejection observation in middleware;
+- a provider error is `outcome="error"`, never a rejection;
+- failures before the middleware or after the observer may belong to generic
+  HTTP metrics later, but are outside BYOK inference metrics in MVP 4.
+
+### 10.3 Label policy and hard series budgets
+
+Allowed labels are intentionally distributed across separate vectors:
+
+| Label | Values | Used by | Bound |
+| --- | --- | --- | --- |
+| `route` | `chat_completions`, `completions` | completions, rejections, duration | 2 |
+| `outcome` | `ok`, `error` | completions, tokens, duration | 2 |
+| `reason` | closed rejection enum plus `other` | rejections only | ≤12 |
+| `streamed` | `true`, `false` | completions and duration only | 2 |
+| `kind` | `prompt`, `completion`, `cached` | tokens only | 3 |
+
+MVP 4 intentionally omits `profile` and `issue_channel` from metrics. Exact
+profile and channel breakdown remains available in the authenticated durable
+usage summary. This avoids multiplying every process metric by the number of
+configured profiles. If a later operational incident demonstrates a need for
+another dimension, add a separate low-dimensional vector under a new reviewed
+series budget rather than expanding the common vectors.
+
+Forbidden labels include `user_id`, `token_id`, `grant_id`, `credential_id`,
+`source_client_id`, `client_instance_id`, profile/model, issue channel, issuer,
+subject, email, username, IP, raw URL/path, raw error, request ID, and provider
+key suffix.
+
+### 10.4 Metrics and explicit maximums
+
+```text
+# 2 routes × 2 outcomes × 2 stream values = at most 8 series
+llm_proxy_byok_inference_completed_total{route,outcome,streamed}
+
+# 2 routes × at most 12 normalized reasons = at most 24 series
+llm_proxy_byok_inference_rejected_total{route,reason}
+
+# 3 token kinds × 2 outcomes = at most 6 series
+llm_proxy_byok_inference_tokens_total{kind,outcome}
+
+# 2 routes × 2 outcomes × 2 stream values = 8 histogram label sets
+llm_proxy_byok_inference_duration_seconds{route,outcome,streamed}
+```
+
+With nine configured buckets, Prometheus also exports the mandatory `+Inf`
+bucket, `_sum`, and `_count`. The histogram therefore contributes at most 96
+series; all four families together remain at or below 134 process series before
+standard Go/process collectors. A test must gather the complete closed
+vocabulary and fail if this reviewed ceiling is exceeded.
 
 Use a histogram only after choosing stable buckets from measured provider
 latency. A conservative initial set might be
 `0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60` seconds. Document bucket changes as a
 metrics contract change.
 
-### 10.5 Failure reason normalization
+### 10.5 Rejection reason normalization
 
 Map typed internal codes, never error text:
 
@@ -695,18 +761,19 @@ func normalizeReason(code string) string {
          "token_expired",
          "model_not_allowed",
          "metering_unavailable",
-         "invalid_api_key":
+         "missing_api_key",
+         "invalid_api_key",
+         "internal_error":
         return code
-    case "":
-        return "none"
     default:
         return "other"
     }
 }
 ```
 
-If request- and token-budget exhaustion later receive distinct public codes,
-add them explicitly. Never label with API error messages.
+Keep the allowlist at 12 or fewer values. If more typed codes appear, map them
+to `other` unless an operator action differs. Never label with API error
+messages.
 
 ## 11. Later increment: OIDC, device, and inventory metrics
 
@@ -868,18 +935,19 @@ Even bounded metrics reveal traffic volume and health. Therefore:
   a later deployment increment.
 - **Status:** proposed.
 
-### Decision: Fixed labels and profile normalization
+### Decision: Split metric families with small fixed vocabularies
 
-- **Context:** IDs and arbitrary strings create unbounded series and privacy
-  leaks.
-- **Options considered:** label everything; no labels; fixed enums plus bounded
-  profile allowlist.
-- **Decision:** closed vocabularies, profile list derived at startup and capped,
-  unknowns mapped to `other`.
-- **Rationale:** Preserves useful model-level operations while proving a hard
-  cardinality ceiling.
-- **Consequences:** Overflow profiles lose per-profile metric distinction but
-  remain exact in durable summaries.
+- **Context:** IDs and arbitrary strings leak privacy, while multiplying even
+  individually bounded dimensions can create tens of thousands of series.
+- **Options considered:** one fully labelled request vector; capped profile
+  labels; separate low-dimensional completion, rejection, token, and duration
+  vectors.
+- **Decision:** split families by semantic event; omit profile and issue channel
+  from MVP metrics; use only closed route/outcome/reason/stream/kind values.
+- **Rationale:** The complete MVP contract remains at or below 134 process series,
+  while exact profile/channel detail remains in authenticated durable summaries.
+- **Consequences:** Prometheus cannot break traffic down by profile or channel;
+  adding any dimension later requires a new reviewed series budget.
 - **Status:** proposed.
 
 ### Decision: Query ledger directly before adding rollup tables
@@ -958,13 +1026,16 @@ secrets; main listener behavior unchanged.
 ### Phase 4: inference/rejection metrics
 
 1. Add domain observer interface and no-op implementation.
-2. Instrument completed provider attempts and middleware rejections exactly
-   once.
-3. Normalize route, outcome, reason, channel, stream, and profile labels.
-4. Add counters; add duration histogram only with reviewed buckets.
-5. Add integration tests proving success/error/rejection counts and no double
+2. Instrument completed provider attempts at all four runtime service call
+   sites, where route and provider duration are available.
+3. Classify the two exact inference routes at middleware entry and observe every
+   early rejection return without counting `/v1/models`.
+4. Normalize only route, outcome, reason, stream, and token-kind labels.
+5. Add split counters; add duration histogram only with reviewed buckets.
+6. Add integration tests proving success/error/rejection counts and no double
    counting.
-6. Add cardinality upper-bound test by gathering every allowed combination.
+7. Gather the complete vocabularies and assert the total stays at or below the
+   reviewed 134-series ceiling.
 
 **Exit criteria:** metrics distinguish successful provider calls, provider
 errors, and pre-dispatch rejections without identity labels.
@@ -1039,7 +1110,9 @@ contains no canary credential or bearer value.
 - loopback metrics enabled;
 - non-loopback metrics address fails startup;
 - health open/half-open/closed snapshots;
-- success, provider error, budget rejection, rate rejection, model rejection;
+- success, provider error, metering unavailable, missing/invalid key, token-store
+  error, budget rejection, rate rejection, and model rejection;
+- `/v1/models` rejection produces no BYOK inference metric;
 - streaming disconnect still records authoritative usage;
 - metrics scrape while SQLite is locked does not panic or alter readiness;
 - graceful shutdown stops both servers.
@@ -1164,10 +1237,8 @@ research ticket:
 2. Should `until > now` clamp or return 400? Pick one and test it.
 3. Should cached tokens contribute to a separate UI total only, or also to a
    future effective-cost estimate?
-4. Is a profile cap of 64 appropriate, or should operations omit profile labels
-   entirely at first?
-5. Which exact rejection reasons deserve separate time series rather than
-   `other`?
+4. Which exact rejection reasons deserve separate time series rather than
+   `other`, while retaining the 12-value reason ceiling?
 6. Should standard Go/process collectors be enabled by default when the metrics
    listener is enabled?
 7. What private-network/TLS policy is required before allowing non-loopback
@@ -1194,7 +1265,7 @@ Before coding:
 | File | Phase | Expected change |
 | --- | --- | --- |
 | `pkg/byok/usage/models.go` | 0 | new summary domain types |
-| `pkg/byok/observability/labels.go` | 0 | closed label vocabulary/tests |
+| `pkg/byok/observability/labels.go` | 0 | closed label vocabulary and series-budget tests |
 | `pkg/byok/store/store.go` | 1 | add narrow summary interface |
 | `pkg/byok/store/models.go` | 1 | alias/import summary types only if needed; avoid metrics types |
 | `pkg/byok/store/memory/store.go` | 1 | deterministic in-memory aggregate |
@@ -1208,8 +1279,10 @@ Before coding:
 | `pkg/byok/observability/*` | 3–5 | registry, collectors, observers |
 | `cmd/llm-proxy-server/main.go` | 3 | metrics flag, composition, lifecycle |
 | `pkg/byok/meter/health.go` | 3 | no semantic rewrite; collector reads Snapshot |
-| `pkg/byok/meter/meter.go` | 4 | emit completed observation after durable result policy is defined |
-| `pkg/byok/authmw/middleware.go` | 4 | emit normalized rejection observation |
+| `pkg/runtime/chat_service.go` | 4 | emit route-aware timed chat completion observations at both provider call sites |
+| `pkg/runtime/completion_service.go` | 4 | emit route-aware timed legacy completion observations at both provider call sites |
+| `pkg/byok/meter/meter.go` | 4 | preserve durable accounting only; do not infer missing route/duration here |
+| `pkg/byok/authmw/middleware.go` | 4 | classify exact inference routes and observe every early rejection return separately from audit |
 | `pkg/byok/oidcauth/oidcauth.go` | 5 | cache/outcome observations |
 | `pkg/byok/agentapi/server.go` | 5 | grant/exchange observations |
 | `deploy/docker-compose.yaml` | 3+ | optional private scrape wiring, never public by default |
