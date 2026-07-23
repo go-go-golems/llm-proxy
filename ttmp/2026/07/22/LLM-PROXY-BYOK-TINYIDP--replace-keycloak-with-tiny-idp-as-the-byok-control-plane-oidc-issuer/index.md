@@ -1,7 +1,7 @@
 ---
 Title: Replace Keycloak with tiny-idp as the BYOK control-plane OIDC issuer
 Ticket: LLM-PROXY-BYOK-TINYIDP
-Status: active
+Status: complete
 Topics:
     - auth
     - security
@@ -15,11 +15,12 @@ Intent: long-term
 Owners: []
 RelatedFiles: []
 ExternalSources: []
-Summary: "Architecture and implementation ticket for replacing Keycloak with a separately deployed tiny-idp, completing PKCE-correct browser login, adding RFC 8628 coding-agent authorization and scoped llmp capability exchange, and preserving encrypted provider credentials, revocation, cumulative budgets, audit, usage, and operational metrics."
-LastUpdated: 2026-07-22T15:42:54-04:00
-WhatFor: "Give implementers an evidence-backed design for the complete human-to-device-to-LLM authority chain and track its production prerequisites, implementation, validation, and delivery."
-WhenToUse: "Read the architecture guide first when implementing or reviewing tiny-idp browser login, coding-agent token acquisition, agent grants, metering, audit, or deployment."
+Summary: Architecture and implementation ticket for replacing Keycloak with a separately deployed tiny-idp, completing PKCE-correct browser login, adding RFC 8628 coding-agent authorization and scoped llmp capability exchange, and preserving encrypted provider credentials, revocation, cumulative budgets, audit, usage, and operational metrics.
+LastUpdated: 2026-07-23T15:34:58.216755701-04:00
+WhatFor: Give implementers an evidence-backed design for the complete human-to-device-to-LLM authority chain and track its production prerequisites, implementation, validation, and delivery.
+WhenToUse: Read the architecture guide first when implementing or reviewing tiny-idp browser login, coding-agent token acquisition, agent grants, metering, audit, or deployment.
 ---
+
 
 # Replace Keycloak with tiny-idp as the BYOK control-plane OIDC issuer
 
@@ -72,7 +73,7 @@ part of the tiny-idp/tiny-idp-xapp work.
 
 ## Status
 
-Current status: **canonical Phases 3–5 complete**
+Current status: **complete and closed**
 
 Research, architecture, and roadmap Phases 0–5 are complete. tiny-idp PR #15
 was merged as commit `486a3e3108f3eeda3d100f3db613aecc74f4d13d`, released as

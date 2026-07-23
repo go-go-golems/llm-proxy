@@ -81,7 +81,13 @@ numbers.
   tiny-idp identity tokens for rotated `llmp_...` capability tokens.
   <!-- t:gs8l -->
 
-## Roadmap Phase 6 — grant accounting, audit, metrics, and UI
+## Deferred roadmap follow-ups (not closure blockers)
+
+The implementation ticket closed after Phase 0–5 delivery, immutable release
+acceptance, and live Umans limit validation. The unchecked Phase 6–7 items are
+preserved as explicit backlog rather than being misrepresented as complete.
+
+### Roadmap Phase 6 — grant accounting, audit, metrics, and UI
 
 - [x] Extend usage accounting to cumulative agent-grant counters. Phase 0
   completed the fail-closed metering circuit breaker. <!-- t:ynm9 -->
@@ -89,7 +95,7 @@ numbers.
   completed typed lifecycle/circuit audit events and readiness integration.
   <!-- t:i4mq -->
 
-## Roadmap Phase 7 — acceptance and release gate
+### Roadmap Phase 7 — acceptance and release gate
 
 - [ ] Write and run the tiny-idp OIDC and coding-agent acceptance playbooks.
 - [ ] Update the `LLM-PROXY-BYOK` architecture proposal §Phase 3 to reflect

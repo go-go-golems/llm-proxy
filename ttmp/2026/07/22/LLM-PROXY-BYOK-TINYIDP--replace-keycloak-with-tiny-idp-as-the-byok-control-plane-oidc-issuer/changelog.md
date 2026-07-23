@@ -118,3 +118,7 @@ Step 11: live-tested token ceiling, RPM, per-capability requests, and cumulative
 
 - /home/manuel/code/wesen/go-go-golems/llm-proxy/README.md — Documented exact live limit semantics including one-request token-ceiling overshoot
 - /home/manuel/code/wesen/go-go-golems/llm-proxy/pkg/byok/policy/policy.go — Budget predicates exercised against live provider traffic
+
+## 2026-07-23
+
+Ticket closed after PR #6 merged as a1d74d8 with all CI green; canonical Phases 0-5, immutable deployment, real Umans GLM 5.2 inference, and live budget/rate/rotation acceptance are complete. Tasks 25-29 remain explicitly deferred roadmap follow-ups and are not part of this ticket closure.
