@@ -100,3 +100,12 @@ Step 9: pinned tiny-idp v0.0.5 immutable OCI digest and completed clean-volume b
 
 - /home/manuel/code/wesen/go-go-golems/llm-proxy/deploy/docker-compose.yaml — Immutable v0.0.5 image and Phase 4 resource-client wiring
 - /home/manuel/code/wesen/go-go-golems/llm-proxy/deploy/tinyidp/bootstrap.sh — Introspection-only confidential client provisioning
+
+## 2026-07-23
+
+Step 10: validated one bounded real Umans GLM 5.2 Chat Completions request with durable usage, revocation, secret scan, credential deletion, and cleanup
+
+### Related Files
+
+- /home/manuel/code/wesen/go-go-golems/llm-proxy/README.md — Exact live-provider compatibility evidence and limits
+- /home/manuel/code/wesen/go-go-golems/llm-proxy/pkg/byok/engines/provider.go — Credential injection path exercised by the live smoke

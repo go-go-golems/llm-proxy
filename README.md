@@ -308,7 +308,12 @@ and `llm.tokens.issue` scope is accepted only by `/agent/v1/*`. The exchanged
 OpenAI Responses, Anthropic-native Messages, arbitrary coding-agent, or
 live-provider compatibility; the currently implemented inference surface is
 the documented OpenAI-compatible Chat Completions and legacy Completions
-surface.
+surface. A bounded live acceptance on 2026-07-23 validated the
+`umans-glm-5.2` Pinocchio profile through `/v1/chat/completions`: the provider
+returned HTTP 200 with the requested content, durable usage recorded 19 prompt
+and 24 completion tokens, revocation changed subsequent capability access to
+401, and the credential was deleted afterward. This is an exact tested target,
+not a claim about other Umans models or clients.
 
 ---
 

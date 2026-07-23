@@ -1215,3 +1215,87 @@ tiny-idp v0.0.5 tag -> merge 486a3e3
 -> exact identity/grant exchange -> llmp capability
 -> /v1 only -> grant revoke -> child token 401
 ```
+
+## Step 10: Validate one real Umans GLM 5.2 provider request
+
+A bounded live request exercised the completed BYOK path against the exact `umans-glm-5.2` profile from the local Pinocchio profile catalog. The test reused only its model, API type, base URL, and credential value; a temporary sanitized profile omitted the provider key and the key entered llm-proxy only through the encrypted browser-managed BYOK vault.
+
+The non-streaming OpenAI-compatible Chat Completions request returned HTTP 200 and exactly `live smoke ok`. Durable token and usage records reported one request and 43 total tokens, after which the capability was revoked, its next request returned 401, the provider credential was deleted, and every transient container, volume, profile, secret, log, and clipboard value was removed.
+
+### Prompt Context
+
+**User prompt (verbatim):** "use the umans glm-5.2 from ~/.config/pinocchio/profiles.yaml ."
+
+**Assistant interpretation:** Use the existing private Pinocchio Umans GLM 5.2 profile and credential for one tightly bounded real provider request through llm-proxy, while preserving credential secrecy and verifying accounting, revocation, and cleanup.
+
+**Inferred user intent:** Move beyond protocol-only acceptance and prove that the completed BYOK stack can perform real inference against one concrete approved provider target.
+
+### What I did
+
+- Read only non-secret metadata for `umans-base` and `umans-glm-5.2`: OpenAI API type, `https://api.code.umans.ai/v1`, model `umans-glm-5.2`, and the `openai-api-key` slot.
+- Created an untracked sanitized one-profile YAML with no provider credential and mounted it through a temporary Compose override.
+- Started fresh project volumes against the pinned tiny-idp v0.0.5 image and completed browser OIDC.
+- Copied the existing Pinocchio profile credential directly into the BYOK browser field without printing or persisting it elsewhere.
+- Minted a one-day capability restricted to `umans-glm-5.2`, 128 total tokens, and 2 requests/minute.
+- Sent one non-streaming `/v1/chat/completions` request with a 32-token output bound.
+- Verified HTTP 200, model identity, exact response text, provider usage, durable llm-proxy usage, and token counters.
+- Revoked the capability, verified a subsequent `/v1/models` request returned 401, deleted the credential, scanned logs, and deleted transient artifacts.
+
+### Why
+
+- Unit tests and local fake providers proved credential injection and accounting mechanics but not an actual provider network request.
+- A single exact target avoids converting one successful smoke into an unsupported general provider or coding-agent claim.
+
+### What worked
+
+- Provider response: HTTP 200, model `umans-glm-5.2`, content `live smoke ok`.
+- Provider and durable broker usage agreed at 19 prompt, 24 completion, and 43 total tokens.
+- The broker token recorded one successful request against its 128-token ceiling.
+- Revocation returned 204 and immediately changed capability access to 401.
+- Credential deletion returned 204.
+- Runtime logs contained none of the Umans key, four deployment secrets, broker capability, or private-key material.
+- The external workstation CA remained while all project containers and volumes were removed.
+
+### What didn't work
+
+- N/A
+
+### What I learned
+
+- The Pinocchio profile stack resolves `umans-glm-5.2` through `umans-base` to ordinary OpenAI-compatible settings: API type `openai`, key slot `openai-api-key`, and base URL `https://api.code.umans.ai/v1`.
+- BYOK's replacement semantics correctly inject the encrypted user key into that key slot without requiring a key in the mounted profile YAML.
+- The provider's usage response flowed through Geppetto into llm-proxy's durable usage ledger without adaptation for this target.
+
+### What was tricky to build
+
+- The private Pinocchio YAML contains a stored provider key, so ordinary file inspection would have exposed it in tool output. Small local scripts emitted only field names and non-secret routing metadata, then moved the credential directly to the browser clipboard without printing it.
+- The minted broker capability appears once in browser DOM by design. The request, revocation check, and DOM clearing ran within one browser automation closure so the token never appeared in terminal or tool output.
+
+### What warrants a second pair of eyes
+
+- Confirm whether the exact Umans GLM 5.2 acceptance should remain README evidence or move into a dedicated provider compatibility matrix as more targets are tested.
+- Review future streaming acceptance separately; this smoke intentionally covered only non-streaming Chat Completions.
+
+### What should be done in the future
+
+- Select one concrete coding-agent client that speaks `/v1/chat/completions` and validate its full interaction pattern before claiming client compatibility.
+- Add other provider/model targets only through the same explicit contract and bounded live-smoke process.
+
+### Code review instructions
+
+- Read the exact-target note in `README.md`; ensure it does not imply `/v1/responses`, Anthropic-native, arbitrary Umans-model, streaming, or coding-agent compatibility.
+- Review the existing real-provider path beginning at `pkg/byok/engines/provider.go`, then `pkg/runtime/chat_service.go` and durable metering.
+- The live evidence is: HTTP 200, exact content, usage `19/24/43`, durable request count 1, revoke 204→401, credential delete 204, clean log scan, and complete transient cleanup.
+
+### Technical details
+
+```text
+Pinocchio umans-glm-5.2 metadata
+-> sanitized keyless profile
+-> encrypted BYOK credential (api_type=openai)
+-> scoped llmp capability
+-> POST /v1/chat/completions
+-> https://api.code.umans.ai/v1
+-> HTTP 200 / live smoke ok / usage 19+24=43
+-> durable ledger -> revoke -> 401 -> credential delete -> cleanup
+```
