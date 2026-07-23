@@ -99,17 +99,13 @@ func (c *CredentialAddCommand) RunIntoWriter(ctx context.Context, vals *values.V
 	if label == "" {
 		label = s.Provider
 	}
-	cred, err := st.CreateCredential(ctx, store.Credential{
+	cred, err := st.CreateCredentialAudited(ctx, store.Credential{
 		ID: credID, UserID: u.ID, Provider: s.Provider, APIType: s.APIType,
 		Label: label, SecretCipher: cipherBlob, SecretLast4: vault.Last4(s.Secret),
 	})
 	if err != nil {
 		return err
 	}
-	_ = st.AppendEvent(ctx, store.AuditEvent{
-		UserID: u.ID, EventType: "credential.created",
-		Payload: []byte(fmt.Sprintf(`{"credential_id":%q,"provider":%q}`, cred.ID, s.Provider)),
-	})
 	_, err = fmt.Fprintf(w, "credential %s stored for %s (%s, %s)\n", cred.ID, u.Username, s.Provider, cred.SecretLast4)
 	return err
 }
@@ -230,13 +226,9 @@ func (c *CredentialRmCommand) RunIntoWriter(ctx context.Context, vals *values.Va
 	if err != nil {
 		return errors.Wrapf(err, "user %q", s.User)
 	}
-	if err := st.DeleteCredential(ctx, u.ID, s.ID); err != nil {
+	if err := st.DeleteCredentialAudited(ctx, u.ID, s.ID); err != nil {
 		return err
 	}
-	_ = st.AppendEvent(ctx, store.AuditEvent{
-		UserID: u.ID, EventType: "credential.deleted",
-		Payload: []byte(fmt.Sprintf(`{"credential_id":%q}`, s.ID)),
-	})
 	_, err = fmt.Fprintf(w, "credential %s deleted\n", s.ID)
 	return err
 }

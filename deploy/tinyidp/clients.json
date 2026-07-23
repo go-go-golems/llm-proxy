@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "clients": [
+    {
+      "id": "llm-proxy-web",
+      "profile": "browser",
+      "redirectURIs": ["https://proxy.localhost:18443/auth/callback"],
+      "postLogoutRedirectURIs": ["https://proxy.localhost:18443/"],
+      "allowedScopes": ["openid", "profile", "email"]
+    }
+  ]
+}

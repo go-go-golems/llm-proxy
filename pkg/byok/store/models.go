@@ -9,11 +9,37 @@ import (
 // User is a control-plane account, provisioned on first OIDC login or via CLI.
 type User struct {
 	ID          string
+	OIDCIssuer  string
 	OIDCSubject string
 	Username    string
 	Email       string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+// AuthTransaction is a short-lived, one-time browser authorization record.
+// IDHash and StateHash are SHA-256 hashes; the browser values are never stored.
+type AuthTransaction struct {
+	IDHash       string
+	StateHash    string
+	Nonce        string
+	PKCEVerifier string
+	ReturnTo     string
+	CreatedAt    time.Time
+	ExpiresAt    time.Time
+	ConsumedAt   *time.Time
+}
+
+// Session is a revocable server-side browser session. IDHash is the SHA-256
+// hash of the opaque cookie identifier.
+type Session struct {
+	ID         string
+	IDHash     string
+	UserID     string
+	CreatedAt  time.Time
+	LastSeenAt time.Time
+	ExpiresAt  time.Time
+	RevokedAt  *time.Time
 }
 
 // Credential is a vault entry: a provider API key stored encrypted.
@@ -31,21 +57,62 @@ type Credential struct {
 	UpdatedAt    time.Time
 }
 
+// AgentGrant is a browser-approved policy and cumulative budget boundary for
+// device-issued capability tokens.
+type AgentGrant struct {
+	ID                   string
+	UserID               string
+	Name                 string
+	CredentialIDs        []string
+	AllowedModels        []string
+	PerTokenMaxTokens    *int64
+	PerTokenMaxRequests  *int64
+	RateLimitRPM         *int64
+	TokenTTL             time.Duration
+	MaxActivePerInstance int
+	GrantMaxTokens       *int64
+	GrantMaxRequests     *int64
+	Enabled              bool
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	RevokedAt            *time.Time
+}
+
+// AgentGrantCounters are cumulative across every token ever issued from a
+// grant. Rotation or reissuance never resets these values.
+type AgentGrantCounters struct {
+	GrantID       string
+	TotalTokens   int64
+	TotalRequests int64
+}
+
+type IssueChannel string
+
+const (
+	IssueChannelWeb    IssueChannel = "web"
+	IssueChannelCLI    IssueChannel = "operator_cli"
+	IssueChannelDevice IssueChannel = "device_exchange"
+)
+
 // Token is a minted bearer token. Only the SHA-256 hash of the secret is stored.
 type Token struct {
-	ID             string
-	UserID         string
-	TokenHash      string
-	Name           string
-	CredentialIDs  []string
-	AllowedModels  []string // profile slugs or globs; empty = nothing allowed
-	MaxTotalTokens *int64   // nil = unlimited
-	MaxRequests    *int64   // nil = unlimited
-	RateLimitRPM   *int64   // nil = unlimited
-	ExpiresAt      *time.Time
-	RevokedAt      *time.Time
-	CreatedAt      time.Time
-	LastUsedAt     *time.Time
+	ID               string
+	UserID           string
+	TokenHash        string
+	Name             string
+	CredentialIDs    []string
+	AllowedModels    []string // profile slugs or globs; empty = nothing allowed
+	AgentGrantID     string
+	IssueChannel     IssueChannel
+	SourceClientID   string
+	ClientInstanceID string
+	MaxTotalTokens   *int64 // nil = unlimited
+	MaxRequests      *int64 // nil = unlimited
+	RateLimitRPM     *int64 // nil = unlimited
+	ExpiresAt        *time.Time
+	RevokedAt        *time.Time
+	CreatedAt        time.Time
+	LastUsedAt       *time.Time
 }
 
 // LedgerEntry is one row of the append-only usage ledger.

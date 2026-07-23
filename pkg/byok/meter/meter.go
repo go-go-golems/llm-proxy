@@ -14,7 +14,8 @@ import (
 )
 
 type Recorder struct {
-	Store store.Store
+	Store  store.Store
+	Health *Health
 }
 
 var _ runtime.UsageRecorder = &Recorder{}
@@ -41,7 +42,15 @@ func (r *Recorder) RecordInference(ctx context.Context, model string, usage *tur
 	}
 	// The request context may be canceled (client disconnected mid-stream);
 	// the usage still happened upstream, so record it detached.
-	if err := r.Store.RecordUsage(context.WithoutCancel(ctx), entry); err != nil {
-		log.Error().Err(err).Str("token_id", tok.ID).Str("model", model).Msg("byok: usage recording failed")
+	recordCtx := context.WithoutCancel(ctx)
+	if err := r.Store.RecordUsage(recordCtx, entry); err != nil {
+		if r.Health != nil {
+			r.Health.RecordFailure(recordCtx, err)
+		}
+		log.Error().Msg("byok: usage recording failed; metering health updated")
+		return
+	}
+	if r.Health != nil {
+		r.Health.RecordSuccess()
 	}
 }

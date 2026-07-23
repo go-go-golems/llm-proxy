@@ -19,15 +19,33 @@ import (
 	"github.com/pkg/errors"
 )
 
+// MeterAvailability is implemented by the shared metering circuit. It is kept
+// as a narrow interface here to avoid coupling authentication to the recorder.
+type MeterAvailability interface {
+	BeforeInference(context.Context) error
+}
+
 // TokenAuth returns middleware enforcing minted tokens on /v1/* paths.
 // Other paths (e.g. /healthz, control plane) pass through untouched.
 func TokenAuth(st store.Store, next http.Handler) http.Handler {
+	return TokenAuthWithMeterHealth(st, nil, next)
+}
+
+// TokenAuthWithMeterHealth additionally rejects new inference before provider
+// dispatch while durable usage accounting is unavailable.
+func TokenAuthWithMeterHealth(st store.Store, meterHealth MeterAvailability, next http.Handler) http.Handler {
 	limiter := NewRateLimiter()
 	dispatchLocks := NewTokenLocks()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.URL.Path, "/v1/") {
 			next.ServeHTTP(w, r)
 			return
+		}
+		if meterHealth != nil {
+			if err := meterHealth.BeforeInference(r.Context()); err != nil {
+				writeAPIError(w, apierr.NewMeteringUnavailable())
+				return
+			}
 		}
 		now := time.Now().UTC()
 
@@ -51,8 +69,37 @@ func TokenAuth(st store.Store, next http.Handler) http.Handler {
 			writeAPIError(w, apiErr)
 			return
 		}
-		unlock := dispatchLocks.Lock(tok.ID)
+		if tok.AgentGrantID != "" {
+			unlockGrant := dispatchLocks.Lock("grant:" + tok.AgentGrantID)
+			defer unlockGrant()
+		}
+		unlock := dispatchLocks.Lock("token:" + tok.ID)
 		defer unlock()
+		if tok.AgentGrantID != "" {
+			grant, err := st.GetAgentGrant(r.Context(), tok.UserID, tok.AgentGrantID)
+			if errors.Is(err, store.ErrNotFound) {
+				apiErr := apierr.NewTokenRevoked()
+				rejected(r.Context(), st, tok, apiErr)
+				writeAPIError(w, apiErr)
+				return
+			}
+			if err != nil {
+				log.Error().Err(err).Msg("byok: agent grant lookup failed")
+				writeAPIError(w, &apierr.APIError{Status: 500, Type: "api_error", Code: "internal_error", Message: "grant validation failed"})
+				return
+			}
+			grantCounters, err := st.GetAgentGrantCounters(r.Context(), grant.ID)
+			if err != nil {
+				log.Error().Err(err).Msg("byok: agent grant counter lookup failed")
+				writeAPIError(w, &apierr.APIError{Status: 500, Type: "api_error", Code: "internal_error", Message: "grant budget check failed"})
+				return
+			}
+			if apiErr := policy.CheckAgentGrant(grant, grantCounters, tok); apiErr != nil {
+				rejected(r.Context(), st, tok, apiErr)
+				writeAPIError(w, apiErr)
+				return
+			}
+		}
 		if !limiter.Allow(tok.ID, tok.RateLimitRPM, now) {
 			apiErr := apierr.NewRateLimited(*tok.RateLimitRPM)
 			rejected(r.Context(), st, tok, apiErr)

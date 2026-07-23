@@ -1,0 +1,15 @@
+{
+	# A root-only one-shot service issues this stack's leaf certificate from the
+	# persistent workstation Caddy CA. The long-running proxy remains non-root.
+	skip_install_trust
+}
+
+https://idp.localhost:18443 {
+	tls /certs/server.crt /certs/server.key
+	reverse_proxy idp:8081
+}
+
+https://proxy.localhost:18443 {
+	tls /certs/server.crt /certs/server.key
+	reverse_proxy llm-proxy:8080
+}

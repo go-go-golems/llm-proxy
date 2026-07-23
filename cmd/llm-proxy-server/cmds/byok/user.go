@@ -28,6 +28,7 @@ type userAddSettings struct {
 	DB       string `glazed:"byok-db"`
 	Username string `glazed:"username"`
 	Email    string `glazed:"email"`
+	Issuer   string `glazed:"issuer"`
 	Subject  string `glazed:"subject"`
 }
 
@@ -51,7 +52,8 @@ Examples:
 			dbField(),
 			fields.New("username", fields.TypeString, fields.WithDefault(""), fields.WithHelp("Username (required)")),
 			fields.New("email", fields.TypeString, fields.WithDefault(""), fields.WithHelp("Email address")),
-			fields.New("subject", fields.TypeString, fields.WithDefault(""), fields.WithHelp("OIDC subject (default local:<username>)")),
+			fields.New("issuer", fields.TypeString, fields.WithDefault("urn:llm-proxy:operator"), fields.WithHelp("Identity issuer")),
+			fields.New("subject", fields.TypeString, fields.WithDefault(""), fields.WithHelp("Subject (default local:<username>)")),
 		),
 		cmds.WithSections(commandSettingsSection),
 	)}, nil
@@ -73,11 +75,11 @@ func (c *UserAddCommand) RunIntoWriter(ctx context.Context, vals *values.Values,
 		return err
 	}
 	defer func() { _ = st.Close() }()
-	u, err := st.UpsertUser(ctx, store.User{OIDCSubject: s.Subject, Username: s.Username, Email: s.Email})
+	u, err := st.UpsertUser(ctx, store.User{OIDCIssuer: s.Issuer, OIDCSubject: s.Subject, Username: s.Username, Email: s.Email})
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(w, "user %s (id %s, subject %s)\n", u.Username, u.ID, u.OIDCSubject)
+	_, err = fmt.Fprintf(w, "user %s (id %s, issuer %s, subject %s)\n", u.Username, u.ID, u.OIDCIssuer, u.OIDCSubject)
 	return err
 }
 
@@ -129,6 +131,7 @@ func (c *UserListCommand) RunIntoGlazeProcessor(ctx context.Context, vals *value
 			types.MRP("id", u.ID),
 			types.MRP("username", u.Username),
 			types.MRP("email", u.Email),
+			types.MRP("issuer", u.OIDCIssuer),
 			types.MRP("subject", u.OIDCSubject),
 			types.MRP("created_at", u.CreatedAt),
 		)

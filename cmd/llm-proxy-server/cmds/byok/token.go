@@ -114,14 +114,10 @@ func (c *TokenMintCommand) RunIntoWriter(ctx context.Context, vals *values.Value
 		exp := time.Now().UTC().Add(time.Duration(s.ExpiresDays) * 24 * time.Hour)
 		tok.ExpiresAt = &exp
 	}
-	minted, err := st.MintToken(ctx, tok)
+	minted, err := st.MintTokenAudited(ctx, tok)
 	if err != nil {
 		return err
 	}
-	_ = st.AppendEvent(ctx, store.AuditEvent{
-		UserID: u.ID, TokenID: minted.ID, EventType: "token.minted",
-		Payload: []byte(fmt.Sprintf(`{"name":%q}`, s.Name)),
-	})
 	_, err = fmt.Fprintf(w, "token %s minted for %s (id %s)\nTHIS IS THE ONLY TIME THE TOKEN IS SHOWN:\n%s\n", s.Name, u.Username, minted.ID, raw)
 	return err
 }
@@ -264,10 +260,9 @@ func (c *TokenRevokeCommand) RunIntoWriter(ctx context.Context, vals *values.Val
 	if err != nil {
 		return errors.Wrapf(err, "user %q", s.User)
 	}
-	if err := st.RevokeToken(ctx, u.ID, s.ID); err != nil {
+	if err := st.RevokeTokenAudited(ctx, u.ID, s.ID); err != nil {
 		return err
 	}
-	_ = st.AppendEvent(ctx, store.AuditEvent{UserID: u.ID, TokenID: s.ID, EventType: "token.revoked"})
 	_, err = fmt.Fprintf(w, "token %s revoked\n", s.ID)
 	return err
 }
