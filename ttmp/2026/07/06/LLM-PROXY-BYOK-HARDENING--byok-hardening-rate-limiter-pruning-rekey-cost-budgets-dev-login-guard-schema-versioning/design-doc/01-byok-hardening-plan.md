@@ -34,6 +34,12 @@ WhenToUse: Read when picking up incremental BYOK hardening after the production-
 
 ## Executive Summary
 
+> **Implementation update (2026-07-22):** The schema-versioning item is complete
+> through `LLM-PROXY-BYOK-TINYIDP` Phase 0. `pkg/byok/store/sqlite/schema.go`
+> now uses forward-only `PRAGMA user_version` migrations, validates legacy and
+> current schema constraints, rejects future/malformed databases, and has
+> transactional rollback tests. The remaining items in this ticket stay open.
+
 The LLM-PROXY-BYOK implementation (Phases 0–3) is functionally complete and tested, but a set of medium-priority hardening items were explicitly deferred and recorded as "what should be done in the future" in the diary. None are blocking (they are documented properties or low-risk growth concerns), but they should land before real deployment. This ticket collects them into one scoped batch.
 
 ## Problem Statement

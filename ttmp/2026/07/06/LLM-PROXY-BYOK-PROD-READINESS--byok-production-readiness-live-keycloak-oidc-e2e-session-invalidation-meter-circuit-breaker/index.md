@@ -12,18 +12,24 @@ DocType: index
 Intent: long-term
 Owners: []
 RelatedFiles:
-    - Path: llm-proxy/pkg/byok/meter/meter.go
-      Note: UsageRecorder swallows store errors — circuit breaker target
-    - Path: llm-proxy/pkg/byok/web/oidc.go
-      Note: OIDC RP ported from byok-host
-    - Path: llm-proxy/pkg/byok/web/session.go
-      Note: HMAC session cookie — no server-side invalidation
+    - Path: repo://pkg/byok/meter/health.go
+      Note: Completed committed-write meter circuit and recovery implementation
+    - Path: repo://pkg/byok/web/oidc.go
+      Note: OIDC RP pending live tiny-idp and PKCE work
+    - Path: repo://pkg/byok/web/session.go
+      Note: Current HMAC cookie pending server-side session invalidation
 ExternalSources: []
 Summary: ""
 LastUpdated: 2026-07-06T11:09:01.829822882-04:00
 WhatFor: ""
 WhenToUse: ""
 ---
+
+
+
+
+
+
 
 
 

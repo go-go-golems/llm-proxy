@@ -11,18 +11,24 @@ DocType: index
 Intent: long-term
 Owners: []
 RelatedFiles:
-    - Path: llm-proxy/pkg/byok/authmw/ratelimit.go
-      Note: Fixed-window rate limiter — pruning + 2x boundary comment
-    - Path: llm-proxy/pkg/byok/store/sqlite/store.go
-      Note: SQLite schema — schema_version target
-    - Path: llm-proxy/pkg/byok/vault/vault.go
-      Note: AES-256-GCM vault with version byte — rekey target
+    - Path: repo://pkg/byok/authmw/ratelimit.go
+      Note: Fixed-window rate limiter — pruning and boundary follow-ups
+    - Path: repo://pkg/byok/store/sqlite/schema.go
+      Note: Completed schema migration and validation implementation
+    - Path: repo://pkg/byok/vault/vault.go
+      Note: AES-256-GCM vault — rekey follow-up target
 ExternalSources: []
 Summary: ""
 LastUpdated: 2026-07-06T11:09:01.733890778-04:00
 WhatFor: ""
 WhenToUse: ""
 ---
+
+
+
+
+
+
 
 
 
