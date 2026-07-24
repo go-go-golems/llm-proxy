@@ -322,9 +322,13 @@ thousands.
 - Splitting event families reduced the proposed series budget by more than two
   orders of magnitude while preserving exact profile/channel detail in the
   authenticated summary API.
+- All three review threads were answered and resolved, and the corrected bundle
+  replaced the original reMarkable PDF successfully.
 
 ### What didn't work
 
+- The first real reMarkable replacement command mistyped the design path and
+  failed with `Error: path not found: /home/manuel/code/wesen/go-go-golems/llm-proxy/ttmp/2026/07/23/LLM-PROXY-BYOK-OBSERVABILITY--phased-operational-metrics-and-usage-summaries-intern-implementation-guide.md`. Re-running with the required `design-doc/` directory succeeded.
 - The original proposed vector could produce `2 × 3 × 9 × 2 × 4 × 65 = 28,080`
   series despite each individual label being bounded.
 - `runtime.UsageRecorder.RecordInference` had no route or duration, so the

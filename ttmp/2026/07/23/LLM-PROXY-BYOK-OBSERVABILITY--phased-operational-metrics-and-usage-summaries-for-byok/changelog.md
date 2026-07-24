@@ -28,3 +28,7 @@ Addressed PR #8 review: split Phase 4 metrics to a reviewed 134-series ceiling, 
 - /home/manuel/code/wesen/go-go-golems/llm-proxy/pkg/byok/authmw/middleware.go — Shows broad /v1 protection, incomplete audit-helper coverage, and need for exact inference classification
 - /home/manuel/code/wesen/go-go-golems/llm-proxy/pkg/runtime/chat_service.go — Provides chat route and provider execution duration at completion call sites
 - /home/manuel/code/wesen/go-go-golems/llm-proxy/pkg/runtime/completion_service.go — Provides legacy completion route and provider execution duration
+
+## 2026-07-23
+
+Replied to and resolved all three PR #8 review threads, then replaced the reMarkable bundle with the corrected Phase 4 design
