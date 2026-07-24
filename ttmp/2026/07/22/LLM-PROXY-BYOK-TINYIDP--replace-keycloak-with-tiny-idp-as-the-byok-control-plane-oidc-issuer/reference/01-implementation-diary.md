@@ -1394,3 +1394,68 @@ case D: grant_max_requests=1
   -> B: 200 / 51 -> reissue denied as unavailable
 aggregate live cost: 6 requests / 257 tokens
 ```
+
+## Step 12: Close the completed implementation ticket
+
+PR #6 merged as `a1d74d8739c56b55e897885b5238794f159d71f3` with every test, lint, dependency, vulnerability, secret-scan, and CodeQL check green. The ticket is now closed as complete after canonical Phases 0–5, immutable deployment acceptance, real Umans inference, and live budget/rate/rotation validation.
+
+Five broader Phase 6–7 roadmap items remain visibly unchecked. They are explicitly classified as deferred backlog rather than silently checked, deleted, or represented as part of this closure.
+
+### Prompt Context
+
+**User prompt (verbatim):** "actually can we close the ticket?"
+
+**Assistant interpretation:** Mark the docmgr ticket complete, preserve unfinished broader roadmap work transparently as deferred follow-ups, record the merged implementation and evidence, and commit the closure metadata.
+
+**Inferred user intent:** Finish the administrative lifecycle of the delivered BYOK/tiny-idp implementation without expanding the ticket indefinitely.
+
+### What I did
+
+- Verified PR #6 merged at `a1d74d8739c56b55e897885b5238794f159d71f3` and every required GitHub check passed.
+- Ran `docmgr ticket close --ticket LLM-PROXY-BYOK-TINYIDP --status complete --intent long-term` with a detailed closure changelog entry.
+- Updated the human-readable index status to `complete and closed`.
+- Relabeled the five unchecked Phase 6–7 tasks as deferred roadmap follow-ups that are not closure blockers.
+
+### Why
+
+- The implemented authority chain and its release/live acceptance are complete.
+- Metrics expansion, formalized playbooks, older proposal synchronization, prior-ticket bookkeeping, and named coding-agent client validation are useful future work but do not invalidate the delivered ticket scope.
+
+### What worked
+
+- docmgr changed ticket status from `active` to `complete` and refreshed closure metadata.
+- The closure retained all five unchecked tasks and emitted an explicit warning rather than hiding them.
+
+### What didn't work
+
+- N/A
+
+### What I learned
+
+- `docmgr ticket close` permits explicit closure with open tasks while warning about their count, which supports transparent scope closure without falsifying backlog state.
+
+### What was tricky to build
+
+- Closure needed to distinguish completed implementation acceptance from broader roadmap aspirations. Keeping the tasks unchecked while adding an explicit deferred heading preserves both facts.
+
+### What warrants a second pair of eyes
+
+- Confirm that future maintainers should create focused tickets from tasks 25–29 rather than reopening this implementation ticket.
+
+### What should be done in the future
+
+- Create new focused tickets only when one of the preserved deferred tasks is selected for implementation.
+
+### Code review instructions
+
+- Review `index.md`, `tasks.md`, and `changelog.md` together: status must be complete, closure evidence must name merge `a1d74d8`, and tasks 25–29 must remain visibly unchecked/deferred.
+- Run `docmgr doctor --ticket LLM-PROXY-BYOK-TINYIDP --stale-after 30`.
+
+### Technical details
+
+```text
+PR #6 / merge a1d74d8 / all checks green
+-> docmgr ticket close --status complete --intent long-term
+-> preserve 5 open tasks under explicit deferred backlog
+-> validate -> commit closure metadata
+```
